@@ -1,0 +1,147 @@
+:root {
+    /* Surface hierarchy — neutral grayscale */
+    --navita-bg-primary: #111111;
+    --navita-bg-secondary: #161616;
+    --navita-bg-tertiary: #1c1c1c;
+    --navita-bg-elevated: #222222;
+    --navita-bg-hover: #2a2a2a;
+    --navita-bg-active: #333333;
+
+    /* Text */
+    --navita-text-primary: #e5e5e5;
+    --navita-text-secondary: #999999;
+    --navita-text-tertiary: #666666;
+    --navita-text-inverse: #111111;
+
+    /* Accent — white/light gray for active states */
+    --navita-accent: #e5e5e5;
+    --navita-accent-hover: #ffffff;
+    --navita-accent-subtle: rgba(255, 255, 255, 0.07);
+
+    /* Status */
+    --navita-success: #4ade80;
+    --navita-success-subtle: rgba(74, 222, 128, 0.12);
+    --navita-warning: #facc15;
+    --navita-warning-subtle: rgba(250, 204, 21, 0.12);
+    --navita-error: #f87171;
+    --navita-error-subtle: rgba(248, 113, 113, 0.12);
+    --navita-info: #a3a3a3;
+    --navita-info-subtle: rgba(163, 163, 163, 0.12);
+
+    /* Borders */
+    --navita-border: #262626;
+    --navita-border-focus: #555555;
+
+    /* Sidebar */
+    --navita-sidebar-width: 220px;
+
+    /* Radius */
+    --navita-radius-sm: 4px;
+    --navita-radius-md: 6px;
+    --navita-radius-lg: 10px;
+
+    /* Shadows */
+    --navita-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --navita-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+
+    /* Typography */
+    --navita-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --navita-font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace;
+    --navita-font-size-xs: 11px;
+    --navita-font-size-sm: 12px;
+    --navita-font-size-base: 13px;
+    --navita-font-size-md: 14px;
+    --navita-font-size-lg: 16px;
+    --navita-font-size-xl: 18px;
+
+    /* Transitions */
+    --navita-transition: 120ms ease;
+}
+
+[data-theme='light'] {
+    --navita-bg-primary: #ffffff;
+    --navita-bg-secondary: #fafafa;
+    --navita-bg-tertiary: #f5f5f5;
+    --navita-bg-elevated: #ffffff;
+    --navita-bg-hover: #eeeeee;
+    --navita-bg-active: #e5e5e5;
+    --navita-text-primary: #171717;
+    --navita-text-secondary: #525252;
+    --navita-text-tertiary: #a3a3a3;
+    --navita-text-inverse: #ffffff;
+    --navita-accent: #171717;
+    --navita-accent-subtle: rgba(0, 0, 0, 0.05);
+    --navita-border: #e5e5e5;
+    --navita-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --navita-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body, #root {
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    font-family: var(--navita-font-sans);
+    font-size: var(--navita-font-size-base);
+    color: var(--navita-text-primary);
+    background: var(--navita-bg-primary);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    user-select: none;
+}
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--navita-bg-active);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--navita-text-tertiary);
+}
+
+code, pre {
+    font-family: var(--navita-font-mono);
+    font-size: var(--navita-font-size-sm);
+}
+
+a {
+    color: var(--navita-text-primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+a:hover {
+    color: var(--navita-accent-hover);
+}
+
+button {
+    cursor: pointer;
+    border: none;
+    background: none;
+    font: inherit;
+    color: inherit;
+}
+
+input, select, textarea {
+    font: inherit;
+    color: inherit;
+}

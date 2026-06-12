@@ -10,7 +10,7 @@ const ROOT = path.resolve(__dirname, '..');
 
 const watch = process.argv.includes('--watch');
 const production = process.argv.includes('--production');
-const studioOnly = process.argv.includes('--studio-only');
+const navitaOnly = process.argv.includes('--navita-only');
 
 /** @type {esbuild.BuildOptions} */
 const shared = {
@@ -59,33 +59,33 @@ const extensionTargets = [
     },
 ];
 
-const studioMainAlias = {
-    '@src': path.join(ROOT, 'packages', 'studio', 'src', 'main'),
+const navitaMainAlias = {
+    '@src': path.join(ROOT, 'packages', 'navita', 'src', 'main'),
     '@ansible/core/out': path.join(ROOT, 'packages', 'core', 'src'),
     '@ansible/core': path.join(ROOT, 'packages', 'core', 'src'),
 };
 
 /** @type {esbuild.BuildOptions[]} */
-const studioTargets = [
+const navitaTargets = [
     {
         ...shared,
-        entryPoints: [path.join(ROOT, 'packages', 'studio', 'src', 'main', 'main.ts')],
-        outfile: path.join(ROOT, 'dist', 'studio-main.js'),
+        entryPoints: [path.join(ROOT, 'packages', 'navita', 'src', 'main', 'main.ts')],
+        outfile: path.join(ROOT, 'dist', 'navita-main.js'),
         outdir: undefined,
         external: ['electron', '@grpc/grpc-js'],
-        alias: studioMainAlias,
+        alias: navitaMainAlias,
     },
     {
         ...shared,
-        entryPoints: [path.join(ROOT, 'packages', 'studio', 'src', 'main', 'preload.ts')],
-        outfile: path.join(ROOT, 'dist', 'studio-preload.js'),
+        entryPoints: [path.join(ROOT, 'packages', 'navita', 'src', 'main', 'preload.ts')],
+        outfile: path.join(ROOT, 'dist', 'navita-preload.js'),
         outdir: undefined,
         external: ['electron'],
-        alias: studioMainAlias,
+        alias: navitaMainAlias,
     },
     {
         ...shared,
-        entryPoints: [path.join(ROOT, 'packages', 'studio', 'src', 'renderer', 'main.tsx')],
+        entryPoints: [path.join(ROOT, 'packages', 'navita', 'src', 'renderer', 'main.tsx')],
         outfile: path.join(ROOT, 'dist', 'renderer', 'renderer.js'),
         outdir: undefined,
         platform: 'browser',
@@ -93,7 +93,7 @@ const studioTargets = [
         target: 'es2020',
         external: [],
         alias: {
-            '@shared': path.join(ROOT, 'packages', 'studio', 'src', 'shared'),
+            '@shared': path.join(ROOT, 'packages', 'navita', 'src', 'shared'),
         },
         loader: { '.css': 'text' },
         define: {
@@ -102,10 +102,10 @@ const studioTargets = [
     },
 ];
 
-const targets = studioOnly ? studioTargets : [...extensionTargets, ...studioTargets];
+const targets = navitaOnly ? navitaTargets : [...extensionTargets, ...navitaTargets];
 
 function copyRendererHtml() {
-    const src = path.join(ROOT, 'packages', 'studio', 'src', 'renderer', 'index.html');
+    const src = path.join(ROOT, 'packages', 'navita', 'src', 'renderer', 'index.html');
     const dest = path.join(ROOT, 'dist', 'renderer', 'index.html');
     if (!fs.existsSync(src)) return;
     fs.mkdirSync(path.dirname(dest), { recursive: true });

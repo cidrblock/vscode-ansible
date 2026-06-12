@@ -30,6 +30,6 @@
     { "path": "packages/core" },
     { "path": "packages/language-server" },
     { "path": "packages/mcp-server" },
-    { "path": "packages/studio" }
+    { "path": "packages/navita" }
   ]
 }

@@ -2,7 +2,7 @@
  * Python Standalone Service
  *
  * Discovers local Python environments without IDE extension support.
- * Intended for standalone consumers — Electron apps (Ansible Studio),
+ * Intended for standalone consumers — Electron apps (Ansible Navita),
  * MCP servers, CLI tools — that don't have access to IDE-provided
  * Python environment discovery (e.g. ms-python.vscode-python-envs).
  *

@@ -409,7 +409,7 @@ export class ExecutionEnvService {
 
     /**
      * Normalize the raw introspection script output into the EEDetails shape
-     * expected by consumers (extension, MCP server, Studio).
+     * expected by consumers (extension, MCP server, Navita).
      *
      * @param raw - Raw JSON output from the vendored introspection script.
      * @param imageName - Full image name to attach to the result.

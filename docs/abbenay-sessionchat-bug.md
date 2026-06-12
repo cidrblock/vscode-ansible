@@ -33,7 +33,7 @@ When a gRPC client calls `SessionChat`, the daemon returns a single chunk `{"don
 6. Stream yields exactly one chunk: `{"done":{"finishReason":"other"}}`
 7. No `error` chunk is emitted. No log line appears in `/tmp/abbenay.log`.
 
-**Observed in first session (before code changes):** The first `SessionChat` message ("hi") in a new session succeeded (`text` + `done reason=stop`). The second message in the same session returned `done reason=other`. After restarting Studio, even the first message in a brand-new session returns `done reason=other`.
+**Observed in first session (before code changes):** The first `SessionChat` message ("hi") in a new session succeeded (`text` + `done reason=stop`). The second message in the same session returned `done reason=other`. After restarting Navita, even the first message in a brand-new session returns `done reason=other`.
 
 **Web UI comparison:** The same model works from the Web UI dashboard:
 ```
@@ -86,10 +86,10 @@ This would make it diagnosable without requiring `DEBUG=*`.
 
 The MCP server registration shows intermittent behavior — sometimes connecting with 31 tools, sometimes with 0, followed by disconnections:
 ```
-[McpClientPool] Dynamic server 'ansible-studio' connected (31 tools, scope={})
-[McpClientPool] Dynamic server 'ansible-studio' connected (0 tools, scope={})
-[McpClientPool] Disconnected from ansible-studio
-[McpClientPool] Disconnected from ansible-studio
+[McpClientPool] Dynamic server 'ansible-navita' connected (31 tools, scope={})
+[McpClientPool] Dynamic server 'ansible-navita' connected (0 tools, scope={})
+[McpClientPool] Disconnected from ansible-navita
+[McpClientPool] Disconnected from ansible-navita
 ```
 
 This may be related if the daemon's internal state becomes inconsistent after MCP server churn.
