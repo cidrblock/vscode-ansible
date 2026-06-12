@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // @ts-check
 import * as esbuild from 'esbuild';
+import * as fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -9,6 +10,7 @@ const ROOT = path.resolve(__dirname, '..');
 
 const watch = process.argv.includes('--watch');
 const production = process.argv.includes('--production');
+const studioOnly = process.argv.includes('--studio-only');
 
 /** @type {esbuild.BuildOptions} */
 const shared = {
@@ -24,7 +26,7 @@ const shared = {
 };
 
 /** @type {esbuild.BuildOptions[]} */
-const targets = [
+const extensionTargets = [
     {
         ...shared,
         entryPoints: [path.join(ROOT, 'src', 'extension.ts')],
@@ -57,6 +59,60 @@ const targets = [
     },
 ];
 
+const studioMainAlias = {
+    '@src': path.join(ROOT, 'packages', 'studio', 'src', 'main'),
+    '@ansible/core/out': path.join(ROOT, 'packages', 'core', 'src'),
+    '@ansible/core': path.join(ROOT, 'packages', 'core', 'src'),
+};
+
+/** @type {esbuild.BuildOptions[]} */
+const studioTargets = [
+    {
+        ...shared,
+        entryPoints: [path.join(ROOT, 'packages', 'studio', 'src', 'main', 'main.ts')],
+        outfile: path.join(ROOT, 'dist', 'studio-main.js'),
+        outdir: undefined,
+        external: ['electron', '@grpc/grpc-js'],
+        alias: studioMainAlias,
+    },
+    {
+        ...shared,
+        entryPoints: [path.join(ROOT, 'packages', 'studio', 'src', 'main', 'preload.ts')],
+        outfile: path.join(ROOT, 'dist', 'studio-preload.js'),
+        outdir: undefined,
+        external: ['electron'],
+        alias: studioMainAlias,
+    },
+    {
+        ...shared,
+        entryPoints: [path.join(ROOT, 'packages', 'studio', 'src', 'renderer', 'main.tsx')],
+        outfile: path.join(ROOT, 'dist', 'renderer', 'renderer.js'),
+        outdir: undefined,
+        platform: 'browser',
+        format: 'iife',
+        target: 'es2020',
+        external: [],
+        alias: {
+            '@shared': path.join(ROOT, 'packages', 'studio', 'src', 'shared'),
+        },
+        loader: { '.css': 'text' },
+        define: {
+            'process.env.NODE_ENV': production ? '"production"' : '"development"',
+        },
+    },
+];
+
+const targets = studioOnly ? studioTargets : [...extensionTargets, ...studioTargets];
+
+function copyRendererHtml() {
+    const src = path.join(ROOT, 'packages', 'studio', 'src', 'renderer', 'index.html');
+    const dest = path.join(ROOT, 'dist', 'renderer', 'index.html');
+    if (!fs.existsSync(src)) return;
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(src, dest);
+    console.log('  dist/renderer/index.html: copied');
+}
+
 async function main() {
     if (watch) {
         const contexts = await Promise.all(targets.map((t) => esbuild.context(t)));
@@ -72,6 +128,7 @@ async function main() {
             }
         }
     }
+    copyRendererHtml();
 }
 
 main().catch((err) => {

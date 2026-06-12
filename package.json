@@ -890,7 +890,9 @@
     "test:watch": "vitest",
     "test:integration": "tsc -p test/integration/tsconfig.json && vscode-test",
     "pretest:ui": "node scripts/install-test-extensions.mjs",
-    "test:ui": "wdio run wdio.conf.ts"
+    "test:ui": "wdio run wdio.conf.ts",
+    "studio:dev": "npm run compile && node scripts/build.mjs --studio-only && node packages/studio/scripts/dev.mjs",
+    "studio:build": "npm run compile && node scripts/build.mjs --studio-only --production"
   },
   "devDependencies": {
     "@eslint/compat": "^2.1.0",

@@ -32,6 +32,9 @@ export {
 } from './services/EnvironmentCache';
 export type { CachedEnvironment } from './services/EnvironmentCache';
 
+export { PythonStandaloneService } from './services/PythonStandaloneService';
+export type { DiscoveredEnvironment } from './services/PythonStandaloneService';
+
 export { ExecutionEnvService } from './services/ExecutionEnvService';
 export type { ExecutionEnvironment, EEDetails } from './services/ExecutionEnvService';
 

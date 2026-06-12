@@ -475,6 +475,35 @@ export class ExecutionEnvService {
     }
 
     /**
+     * Get system packages installed in an execution environment.
+     *
+     * @param fullName - Full image name to inspect.
+     * @returns Sorted system package name and version pairs from EE details.
+     */
+    public async getSystemPackages(
+        fullName: string,
+    ): Promise<{ name: string; version: string }[]> {
+        const details = await this.loadDetails(fullName);
+        if (!details?.system_packages?.details) {
+            return [];
+        }
+
+        return Object.entries(details.system_packages.details)
+            .map(([name, value]) => {
+                let version: string;
+                if (typeof value === 'string') {
+                    version = value;
+                } else if (value && typeof value === 'object' && 'version' in value) {
+                    version = String((value as Record<string, unknown>).version ?? '');
+                } else {
+                    version = String(value ?? '');
+                }
+                return { name, version };
+            })
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    /**
      * Get OS and Ansible version info for an execution environment.
      *
      * @param fullName - Full image name to inspect.
