@@ -63,10 +63,14 @@ export function initializeCoreBridge(mainWindow: BrowserWindow): void {
     setLogFunction(log);
 
     const commandService = getCommandService();
+    let binDirLogged = false;
     commandService.setBinDirResolver(async () => {
         const binDir = getCachedBinDir();
         if (binDir) {
-            log(`coreBridge: resolved binDir from cache: ${binDir}`);
+            if (!binDirLogged) {
+                log(`coreBridge: resolved binDir from cache: ${binDir}`);
+                binDirLogged = true;
+            }
             return binDir;
         }
         log('coreBridge: no cached binDir found');

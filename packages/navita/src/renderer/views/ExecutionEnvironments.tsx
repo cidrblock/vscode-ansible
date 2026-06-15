@@ -26,7 +26,7 @@ export function EEList({ selected, onSelect }: EEListProps): React.JSX.Element {
         }).catch(() => setLoading(false));
     }, []);
 
-    if (loading) return <div style={navMuted}>Scanning images...</div>;
+    if (loading) return <div style={navMuted}>Discovering execution environments...</div>;
     if (ees.length === 0) return <div style={navMuted}>No EE images found. Ensure podman or docker is available.</div>;
 
     return (
