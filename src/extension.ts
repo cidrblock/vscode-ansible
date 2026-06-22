@@ -17,6 +17,8 @@ import { CreatorFormPanel } from '@src/panels/CreatorFormPanel';
 import { PlaybooksProvider } from '@src/views/PlaybooksProvider';
 import { PlaybookConfigPanel } from '@src/panels/PlaybookConfigPanel';
 import { PlaybookProgressPanel } from '@src/panels/PlaybookProgressPanel';
+import { EEDetailPanel } from '@src/panels/EEDetailPanel';
+import { PackageDetailPanel } from '@src/panels/PackageDetailPanel';
 import { PlaybooksService, PlaybookInfo, PlaybookPlay } from '@src/services/PlaybooksService';
 import { TerminalService } from '@src/services/TerminalService';
 import { PythonEnvironmentService } from '@src/services/PythonEnvironmentService';
@@ -32,14 +34,25 @@ import {
 } from '@src/views/CollectionSourcesProvider';
 import {
     GalaxyCollectionCache,
+    GalaxyDocsCache,
+    SCMDocsCache,
     CollectionsService,
     setLogFunction as setCollectionsLogFunction,
     DevToolsService,
     cacheSelectedEnvironment,
     getCommandService,
     SkillRegistry,
-} from '@ansible/core';
-import type { PythonEnvironment, SchemaNode, SkillSource, SkillEntry } from '@ansible/core';
+    buildCollectionsSummaryPrompt,
+    buildCollectionSummaryPrompt,
+    buildPluginExplanationPrompt,
+    buildGalaxyPluginExplanationPrompt,
+    buildScmPluginExplanationPrompt,
+    buildEESummaryPrompt,
+    buildEEDetailPrompt,
+    buildCreatorOverviewPrompt,
+    buildCreatorCommandWalkthroughPrompt,
+} from '@ansible/services';
+import type { PythonEnvironment, SchemaNode, SkillSource, SkillEntry } from '@ansible/services';
 import { SkillsProvider, openChatWithSkill, copySkillPrompt } from '@src/views/SkillsProvider';
 import {
     registerMcpServerProvider,
@@ -53,6 +66,7 @@ import {
 import { getLlmService } from '@src/services/LlmService';
 import { registerFileAssociation } from '@src/features/fileAssociation';
 import { registerVaultCommand } from '@src/features/vault';
+import { registerLightspeed } from '@src/features/lightspeed/register';
 
 // Create output channel for extension logs
 export const outputChannel = vscode.window.createOutputChannel('Ansible Environments');
@@ -187,6 +201,13 @@ export function activate(context: vscode.ExtensionContext) {
 
     registerFileAssociation(context);
     registerVaultCommand(context);
+    registerLightspeed(context)
+        .then((disposable) => {
+            if (disposable) context.subscriptions.push(disposable);
+        })
+        .catch((e: unknown) => {
+            console.error('[lightspeed] Registration failed:', e);
+        });
 
     // Inject log function into services
     setCollectionsLogFunction(log);
@@ -426,7 +447,7 @@ export function activate(context: vscode.ExtensionContext) {
     const collectionSourcesProvider = new CollectionSourcesProvider();
     const collectionSourcesView = vscode.window.createTreeView('ansibleCollectionSources', {
         treeDataProvider: collectionSourcesProvider,
-        showCollapseAll: false,
+        showCollapseAll: true,
     });
     context.subscriptions.push(collectionSourcesView);
 
@@ -600,6 +621,14 @@ export function activate(context: vscode.ExtensionContext) {
     galaxyCache.setExtensionContext(context);
     galaxyCache.startBackgroundLoad();
 
+    // Initialize Galaxy docs-blob cache
+    const galaxyDocsCache = GalaxyDocsCache.getInstance();
+    galaxyDocsCache.setExtensionContext(context);
+
+    // Initialize SCM docs cache for GitHub collection plugin browsing
+    const scmDocsCache = SCMDocsCache.getInstance();
+    scmDocsCache.setLogFunction(log);
+
     // Register Collections commands
     const collectionsRefreshCommand = vscode.commands.registerCommand(
         'ansibleDevToolsCollections.refresh',
@@ -691,23 +720,29 @@ export function activate(context: vscode.ExtensionContext) {
         },
     );
 
+    // Open EE detail panel
+    const eeDetailCommand = vscode.commands.registerCommand(
+        'ansibleExecutionEnvironments.showDetail',
+        (eeName: string) => {
+            EEDetailPanel.show(context.extensionUri, eeName);
+        },
+    );
+    context.subscriptions.push(eeDetailCommand);
+
+    // Open package detail panel
+    const packageDetailCommand = vscode.commands.registerCommand(
+        'ansibleExecutionEnvironments.showPackageDetail',
+        (eeName: string, packageName: string, packageType: 'python' | 'system') => {
+            PackageDetailPanel.show(context.extensionUri, eeName, packageName, packageType);
+        },
+    );
+    context.subscriptions.push(packageDetailCommand);
+
     // AI Summary Commands - Collections
     const collectionsAiSummaryCommand = vscode.commands.registerCommand(
         'ansibleDevToolsCollections.aiSummary',
         async () => {
-            const prompt = `Generate a summary of the installed Ansible collections in this workspace.
-
-Use the \`list_ansible_collections\` MCP tool to get the list of installed collections, then provide:
-1. A brief overview of the collection categories (networking, cloud, system, etc.)
-2. Key capabilities provided by these collections
-3. Any recommendations for commonly paired collections that might be missing
-
-After your summary, ask the user if they would like to search for additional collections. If they say yes, use the \`search_available_collections\` MCP tool to find relevant collections based on their use case (you can filter by source: "galaxy" or a GitHub org name).
-
-**IMPORTANT**: To install any collection, use the \`install_ansible_collection\` MCP tool.
-Do NOT suggest using \`ansible-galaxy collection install\` directly.`;
-
-            await openChatWithPrompt(prompt);
+            await openChatWithPrompt(buildCollectionsSummaryPrompt());
         },
     );
 
@@ -717,15 +752,7 @@ Do NOT suggest using \`ansible-galaxy collection install\` directly.`;
             if (!node.name) {
                 return;
             }
-            const prompt = `Generate a summary of the Ansible collection "${node.name}".
-
-Use the \`get_collection_plugins\` MCP tool with collection="${node.name}" to get all plugins in this collection, then provide:
-1. A brief description of what this collection is for
-2. The key modules, plugins, and roles it provides
-3. Common use cases and example scenarios
-4. Any dependencies or requirements`;
-
-            await openChatWithPrompt(prompt);
+            await openChatWithPrompt(buildCollectionSummaryPrompt(node.name));
         },
     );
 
@@ -735,15 +762,7 @@ Use the \`get_collection_plugins\` MCP tool with collection="${node.name}" to ge
             if (!node.fullName) {
                 return;
             }
-            const prompt = `Explain the Ansible ${node.pluginType} plugin "${node.fullName}".
-
-Use the \`get_plugin_documentation\` MCP tool with plugin_name="${node.fullName}" and plugin_type="${node.pluginType}" to get the full documentation, then provide:
-1. What this plugin does in plain language
-2. The most important parameters and when to use them
-3. A practical example task showing common usage
-4. Any gotchas or best practices`;
-
-            await openChatWithPrompt(prompt);
+            await openChatWithPrompt(buildPluginExplanationPrompt(node.fullName, node.pluginType));
         },
     );
 
@@ -751,14 +770,7 @@ Use the \`get_plugin_documentation\` MCP tool with plugin_name="${node.fullName}
     const eeAiSummaryCommand = vscode.commands.registerCommand(
         'ansibleExecutionEnvironments.aiSummary',
         async () => {
-            const prompt = `Generate a summary of the available Ansible Execution Environments.
-
-Use the \`list_execution_environments\` MCP tool to get the list of available EEs, then provide:
-1. An overview of each execution environment and its purpose
-2. Key tools and collections included in each
-3. Recommendations for which EE to use for different scenarios`;
-
-            await openChatWithPrompt(prompt);
+            await openChatWithPrompt(buildEESummaryPrompt());
         },
     );
 
@@ -768,23 +780,7 @@ Use the \`list_execution_environments\` MCP tool to get the list of available EE
             if (!node.label) {
                 return;
             }
-            const prompt = `Generate a detailed summary of the Ansible Execution Environment "${node.label}".
-
-Use the \`get_ee_details\` MCP tool with ee_name="${node.label}" to get all information about this EE.
-
-The tool returns complete details including:
-- Container base OS and Ansible version
-- ALL installed Python packages with versions
-- ALL installed Ansible collections with versions
-- System packages (if available)
-
-Based on the tool output, provide:
-1. A summary of the container image and its base OS
-2. Key Python packages and what they enable
-3. Notable Ansible collections included and their use cases
-4. Best use cases for this execution environment`;
-
-            await openChatWithPrompt(prompt);
+            await openChatWithPrompt(buildEEDetailPrompt(node.label));
         },
     );
 
@@ -792,16 +788,7 @@ Based on the tool output, provide:
     const creatorAiSummaryCommand = vscode.commands.registerCommand(
         'ansibleCreator.aiSummary',
         async () => {
-            const prompt = `Explain the ansible-creator scaffolding tool and summarize its capabilities.
-
-Use the \`get_ansible_creator_schema\` MCP tool to get the full schema, then provide:
-1. What ansible-creator is and why it's useful
-2. A summary of each content type it can scaffold (collections, playbooks, plugins, etc.)
-3. The key parameters for each scaffolding command
-4. Best practices for starting new Ansible projects
-5. How the generated structure follows Ansible best practices`;
-
-            await openChatWithPrompt(prompt);
+            await openChatWithPrompt(buildCreatorOverviewPrompt());
         },
     );
 
@@ -816,7 +803,6 @@ Use the \`get_ansible_creator_schema\` MCP tool to get the full schema, then pro
                 return;
             }
             const commandStr = `ansible-creator ${node.commandPath.join(' ')}`;
-            // Build the tool name from the command path (e.g., ['add', 'plugin', 'filter'] -> 'ac_add_plug_filter')
             const toolName = `ac_${node.commandPath
                 .map((p: string) => {
                     const abbr: Record<string, string> = {
@@ -834,18 +820,11 @@ Use the \`get_ansible_creator_schema\` MCP tool to get the full schema, then pro
                 })
                 .join('_')}`;
 
-            const prompt = `Help me use the "${commandStr}" command to scaffold new Ansible content.
-
-${node.schema.description ? `This command: ${node.schema.description}` : ''}
-
-Use the \`${toolName}\` MCP tool to execute this command once I provide the required parameters.
-
-Please:
-1. Explain what this command creates and the resulting directory structure
-2. Walk me through the required and optional parameters
-3. Suggest best practices for the values I should provide
-4. After I provide the details, use the \`${toolName}\` tool to run the command`;
-
+            const prompt = buildCreatorCommandWalkthroughPrompt(
+                commandStr,
+                toolName,
+                node.schema.description,
+            );
             await openChatWithPrompt(prompt);
         },
     );
@@ -1093,6 +1072,125 @@ Please:
         },
     );
 
+    const filterGalaxyCollectionsCommand = vscode.commands.registerCommand(
+        'ansibleCollectionSources.filterGalaxyCollections',
+        async () => {
+            await collectionSourcesProvider.filterGalaxyCollections();
+        },
+    );
+
+    const clearGalaxyFilterCommand = vscode.commands.registerCommand(
+        'ansibleCollectionSources.clearGalaxyFilter',
+        () => {
+            collectionSourcesProvider.clearGalaxyFilter();
+        },
+    );
+
+    const installGalaxyCollectionCommand = vscode.commands.registerCommand(
+        'ansibleCollectionSources.installGalaxyCollection',
+        async (node?: { collection: { namespace: string; name: string } }) => {
+            if (!node) {
+                vscode.window.showWarningMessage('Select a Galaxy collection from the tree view.');
+                return;
+            }
+            await collectionSourcesProvider.installGalaxyCollection(
+                node as Parameters<typeof collectionSourcesProvider.installGalaxyCollection>[0],
+            );
+        },
+    );
+
+    const showGalaxyPluginDocCommand = vscode.commands.registerCommand(
+        'ansibleCollectionSources.showGalaxyPluginDoc',
+        async (node?: Parameters<typeof collectionSourcesProvider.showGalaxyPluginDoc>[0]) => {
+            if (!node) {
+                vscode.window.showWarningMessage('Select a Galaxy plugin from the tree view.');
+                return;
+            }
+            await collectionSourcesProvider.showGalaxyPluginDoc(node, context.extensionUri);
+        },
+    );
+
+    const galaxyPluginAiSummaryCommand = vscode.commands.registerCommand(
+        'ansibleCollectionSources.galaxyPluginAiSummary',
+        async (node?: {
+            plugin: { name: string; fullName: string };
+            pluginType: string;
+            collection: { namespace: string; name: string };
+        }) => {
+            if (
+                !vscode.workspace
+                    .getConfiguration('ansibleEnvironments')
+                    .get<boolean>('enableAiFeatures', true)
+            ) {
+                return;
+            }
+            if (!node) {
+                vscode.window.showWarningMessage('Select a Galaxy plugin from the tree view.');
+                return;
+            }
+            const collectionFqcn = `${node.collection.namespace}.${node.collection.name}`;
+            const prompt = buildGalaxyPluginExplanationPrompt(
+                collectionFqcn,
+                node.plugin.name,
+                node.pluginType,
+            );
+            await openChatWithPrompt(prompt);
+        },
+    );
+
+    const githubPluginAiSummaryCommand = vscode.commands.registerCommand(
+        'ansibleCollectionSources.githubPluginAiSummary',
+        async (node?: {
+            plugin: { name: string; fullName: string };
+            pluginType: string;
+            collection: { namespace: string; name: string; org: string; repository: string };
+        }) => {
+            if (
+                !vscode.workspace
+                    .getConfiguration('ansibleEnvironments')
+                    .get<boolean>('enableAiFeatures', true)
+            ) {
+                return;
+            }
+            if (!node) {
+                vscode.window.showWarningMessage('Select a GitHub plugin from the tree view.');
+                return;
+            }
+            const collectionFqcn = `${node.collection.namespace}.${node.collection.name}`;
+            const repo = node.collection.repository.split('/').pop() ?? node.collection.repository;
+            const prompt = buildScmPluginExplanationPrompt(
+                node.collection.org,
+                repo,
+                collectionFqcn,
+                node.plugin.name,
+                node.pluginType,
+            );
+            await openChatWithPrompt(prompt);
+        },
+    );
+
+    const showGitHubPluginDocCommand = vscode.commands.registerCommand(
+        'ansibleCollectionSources.showGitHubPluginDoc',
+        async (node?: Parameters<typeof collectionSourcesProvider.showGitHubPluginDoc>[0]) => {
+            if (!node) {
+                vscode.window.showWarningMessage('Select a GitHub plugin from the tree view.');
+                return;
+            }
+            await collectionSourcesProvider.showGitHubPluginDoc(node, context.extensionUri);
+        },
+    );
+
+    const refreshGitHubCollectionCommand = vscode.commands.registerCommand(
+        'ansibleCollectionSources.refreshGitHubCollection',
+        (node?: Parameters<typeof collectionSourcesProvider.refreshGitHubCollection>[0]) => {
+            if (!node) {
+                vscode.window.showWarningMessage('Select a GitHub collection from the tree view.');
+                return;
+            }
+            collectionSourcesProvider.refreshGitHubCollection(node);
+        },
+    );
+
     // Register Galaxy cache refresh command
     const galaxyCacheRefreshCommand = vscode.commands.registerCommand(
         'ansibleDevToolsCollections.refreshGalaxyCache',
@@ -1230,16 +1328,16 @@ Please:
     // Register plugin documentation command
     const showPluginDocCommand = vscode.commands.registerCommand(
         'ansibleDevTools.showPluginDoc',
-        async (pluginFullName: string, pluginType: string) => {
-            await PluginDocPanel.show(context.extensionUri, pluginFullName, pluginType);
+        (pluginFullName: string, pluginType: string) => {
+            PluginDocPanel.show(context.extensionUri, pluginFullName, pluginType);
         },
     );
 
     // Register plugin documentation command for context menu
     const collectionsShowPluginDocCommand = vscode.commands.registerCommand(
         'ansibleDevToolsCollections.showPluginDoc',
-        async (node: { fullName: string; pluginType: string }) => {
-            await PluginDocPanel.show(context.extensionUri, node.fullName, node.pluginType);
+        (node: { fullName: string; pluginType: string }) => {
+            PluginDocPanel.show(context.extensionUri, node.fullName, node.pluginType);
         },
     );
 
@@ -1306,6 +1404,14 @@ Please:
         collectionSourcesInstallFromSourceCommand,
         collectionSourcesAiSummaryCommand,
         collectionSourcesAiSourceSummaryCommand,
+        filterGalaxyCollectionsCommand,
+        clearGalaxyFilterCommand,
+        installGalaxyCollectionCommand,
+        showGalaxyPluginDocCommand,
+        galaxyPluginAiSummaryCommand,
+        githubPluginAiSummaryCommand,
+        showGitHubPluginDocCommand,
+        refreshGitHubCollectionCommand,
         selectLlmModelCommand,
         showLlmStatusCommand,
     );

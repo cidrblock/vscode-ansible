@@ -10,3 +10,7 @@ node_modules
 .venv/
 coverage/
 __pycache__/
+lib/
+.ansible/
+docs/.astro/
+docs/dist/

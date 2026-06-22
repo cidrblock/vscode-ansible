@@ -232,6 +232,121 @@ Examples:
     },
 };
 
+export const GET_GALAXY_PLUGIN_DOC_TOOL: McpToolDefinition = {
+    name: 'get_galaxy_plugin_doc',
+    description: `Get documentation for a plugin from an uninstalled Galaxy collection.
+
+Fetches the docs-blob from Ansible Galaxy and returns full plugin documentation
+including synopsis, parameters, examples, and return values.
+
+Use search_available_collections first to find the collection, then this tool
+to read its plugin docs without installing it.
+
+Examples:
+- get_galaxy_plugin_doc({ collection: "cisco.ios", plugin: "ios_acls", plugin_type: "module" })
+- get_galaxy_plugin_doc({ collection: "community.docker" }) → lists all plugin types and counts`,
+    inputSchema: {
+        type: 'object',
+        properties: {
+            collection: {
+                type: 'string',
+                description: 'Collection FQCN (e.g., "cisco.ios", "community.general")',
+            },
+            plugin: {
+                type: 'string',
+                description:
+                    'Plugin short name (e.g., "ios_acls"). Omit to list available plugin types.',
+            },
+            plugin_type: {
+                type: 'string',
+                enum: [
+                    'module',
+                    'filter',
+                    'lookup',
+                    'callback',
+                    'connection',
+                    'inventory',
+                    'become',
+                    'cache',
+                    'cliconf',
+                    'httpapi',
+                    'netconf',
+                    'shell',
+                    'strategy',
+                    'test',
+                    'vars',
+                ],
+                description: 'Plugin type (default: module)',
+            },
+        },
+        required: ['collection'],
+    },
+};
+
+export const GET_SCM_PLUGIN_DOC_TOOL: McpToolDefinition = {
+    name: 'get_scm_plugin_doc',
+    description: `Get documentation for a plugin from a GitHub-hosted collection.
+
+Shallow-clones the repository and runs ansible-doc to extract full plugin
+documentation including synopsis, parameters, examples, and return values.
+Results are cached for 7 days.
+
+Requires the collection to be in a configured GitHub organization.
+
+Examples:
+- get_scm_plugin_doc({ org: "redhat-cop", repo: "infra.aap_configuration", collection: "infra.aap_configuration", plugin: "credential_type", plugin_type: "module" })
+- get_scm_plugin_doc({ org: "redhat-cop", repo: "infra.aap_configuration", collection: "infra.aap_configuration" }) → lists all plugin types and counts`,
+    inputSchema: {
+        type: 'object',
+        properties: {
+            org: {
+                type: 'string',
+                description: 'GitHub organization (e.g., "redhat-cop")',
+            },
+            repo: {
+                type: 'string',
+                description: 'GitHub repository name (e.g., "infra.aap_configuration")',
+            },
+            collection: {
+                type: 'string',
+                description: 'Collection FQCN (e.g., "infra.aap_configuration")',
+            },
+            plugin: {
+                type: 'string',
+                description:
+                    'Plugin short name (e.g., "credential_type"). Omit to list available plugin types.',
+            },
+            plugin_type: {
+                type: 'string',
+                enum: [
+                    'module',
+                    'filter',
+                    'lookup',
+                    'callback',
+                    'connection',
+                    'inventory',
+                    'become',
+                    'cache',
+                    'cliconf',
+                    'httpapi',
+                    'netconf',
+                    'shell',
+                    'strategy',
+                    'test',
+                    'vars',
+                ],
+                description: 'Plugin type (default: module)',
+            },
+            force_refresh: {
+                type: 'boolean',
+                description:
+                    'Set to true to invalidate the cached docs and re-clone the repository. Use when the collection has been updated.',
+            },
+        },
+        required: ['org', 'repo', 'collection'],
+    },
+};
+
 // === Task Generation Tools ===
 
 export const GENERATE_TASK_TOOL: McpToolDefinition = {
@@ -555,6 +670,8 @@ export const STATIC_TOOLS: McpToolDefinition[] = [
     SEARCH_AVAILABLE_COLLECTIONS_TOOL,
     LIST_SOURCE_COLLECTIONS_TOOL,
     GET_COLLECTION_PLUGINS_TOOL,
+    GET_GALAXY_PLUGIN_DOC_TOOL,
+    GET_SCM_PLUGIN_DOC_TOOL,
 
     // Task generation
     GENERATE_TASK_TOOL,

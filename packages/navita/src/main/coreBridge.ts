@@ -19,14 +19,14 @@ import {
     CreatorService,
     GalaxyCollectionCache,
     GitHubCollectionCache,
-} from '@ansible/core';
+} from '@ansible/services';
 import type {
     CollectionInfo,
     PluginInfo,
     PluginData,
     DevToolPackage,
     SchemaNode,
-} from '@ansible/core';
+} from '@ansible/services';
 import { IPC_CHANNELS } from '../shared/types';
 import type {
     EnvironmentInfo,

@@ -10,7 +10,7 @@
 import {
     CollectionsService,
     DevToolsService,
-} from '@ansible/core';
+} from '@ansible/services';
 import type { McpToolInfo, McpConfigSnippet, NavitaSettings } from '../shared/types';
 import { loadSettings } from './settingsStore';
 import * as os from 'os';

@@ -137,10 +137,22 @@ const hoisted = vi.hoisted(() => {
         loadSchema: vi.fn().mockResolvedValue(null),
     };
 
+    const galaxyDocsInstance = {
+        getPluginTypes: vi.fn().mockResolvedValue(null as Record<string, unknown[]> | null),
+        getPluginDoc: vi.fn().mockResolvedValue(null),
+    };
+
+    const scmDocsInstance = {
+        getPluginTypes: vi.fn().mockResolvedValue(null as Record<string, unknown[]> | null),
+        getPluginDoc: vi.fn().mockResolvedValue(null),
+    };
+
     return {
         getPluginDocumentation,
         collectionsInstance,
         galaxyInstance,
+        galaxyDocsInstance,
+        scmDocsInstance,
         githubInstance,
         eeInstance,
         devToolsInstance,
@@ -159,7 +171,7 @@ const hoisted = vi.hoisted(() => {
     };
 });
 
-vi.mock('@ansible/core', () => ({
+vi.mock('@ansible/services', () => ({
     CollectionsService: {
         getInstance: vi.fn(() => hoisted.collectionsInstance),
     },
@@ -175,8 +187,14 @@ vi.mock('@ansible/core', () => ({
     GalaxyCollectionCache: {
         getInstance: vi.fn(() => hoisted.galaxyInstance),
     },
+    GalaxyDocsCache: {
+        getInstance: vi.fn(() => hoisted.galaxyDocsInstance),
+    },
     GitHubCollectionCache: {
         getInstance: vi.fn(() => hoisted.githubInstance),
+    },
+    SCMDocsCache: {
+        getInstance: vi.fn(() => hoisted.scmDocsInstance),
     },
     SkillRegistry: {
         getInstance: vi.fn(() => ({
@@ -498,6 +516,7 @@ describe('McpToolHandler', () => {
                     name: 'd',
                     version: '2.0.0',
                     description: 'From GitHub',
+                    repository: 'myorg/c.d',
                 },
             ]);
 
@@ -708,7 +727,10 @@ describe('McpToolHandler', () => {
                     ],
                 },
                 system_packages: {
-                    details: { bash: '5.2', curl: '8.0' },
+                    details: [
+                        { name: 'bash', version: '5.2', release: '1.fc40' },
+                        { name: 'curl', version: '8.0', release: '2.fc40' },
+                    ],
                 },
             });
 
@@ -894,6 +916,323 @@ describe('McpToolHandler', () => {
             expect(result.content[0].text).toContain('Guiding Principles');
             expect(result.content[0].text).toContain('First line');
             expect(result.content[0].text).not.toContain('Skip this');
+        });
+    });
+
+    describe('get_galaxy_plugin_doc', () => {
+        it('returns error for missing collection parameter', async () => {
+            const result = await handler.handleTool('get_galaxy_plugin_doc', {});
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain('Missing required parameter');
+        });
+
+        it('returns error for invalid collection format', async () => {
+            const result = await handler.handleTool('get_galaxy_plugin_doc', {
+                collection: 'invalid',
+            });
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain('namespace.name format');
+        });
+
+        it('returns error when collection not found on Galaxy', async () => {
+            hoisted.galaxyInstance.getCollections.mockReturnValue([]);
+            const result = await handler.handleTool('get_galaxy_plugin_doc', {
+                collection: 'unknown.col',
+            });
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain('not found on Galaxy');
+        });
+
+        it('lists plugin types when no plugin specified', async () => {
+            hoisted.galaxyInstance.getCollections.mockReturnValue([
+                {
+                    namespace: 'cisco',
+                    name: 'ios',
+                    version: '11.0.0',
+                    deprecated: false,
+                    downloadCount: 100,
+                },
+            ]);
+            hoisted.galaxyDocsInstance.getPluginTypes.mockResolvedValue({
+                module: [
+                    {
+                        name: 'ios_acls',
+                        fullName: 'cisco.ios.ios_acls',
+                        shortDescription: 'ACL config',
+                    },
+                    {
+                        name: 'ios_bgp',
+                        fullName: 'cisco.ios.ios_bgp',
+                        shortDescription: 'BGP config',
+                    },
+                ],
+                lookup: [
+                    {
+                        name: 'ios_lookup',
+                        fullName: 'cisco.ios.ios_lookup',
+                        shortDescription: 'Lookup',
+                    },
+                ],
+            });
+
+            const result = await handler.handleTool('get_galaxy_plugin_doc', {
+                collection: 'cisco.ios',
+            });
+
+            expect(result.isError).toBeUndefined();
+            expect(result.content[0].text).toContain('cisco.ios');
+            expect(result.content[0].text).toContain('module (2)');
+            expect(result.content[0].text).toContain('ios_acls');
+            expect(result.content[0].text).toContain('ios_bgp');
+            expect(result.content[0].text).toContain('lookup (1)');
+        });
+
+        it('returns full plugin documentation when plugin specified', async () => {
+            hoisted.galaxyInstance.getCollections.mockReturnValue([
+                {
+                    namespace: 'cisco',
+                    name: 'ios',
+                    version: '11.0.0',
+                    deprecated: false,
+                    downloadCount: 100,
+                },
+            ]);
+            hoisted.galaxyDocsInstance.getPluginDoc.mockResolvedValue({
+                doc: {
+                    short_description: 'Manage ACLs',
+                    description: ['Configure access control lists on IOS devices.'],
+                    author: ['Cisco Systems'],
+                    options: {
+                        config: {
+                            type: 'list',
+                            description: 'ACL config entries',
+                            required: true,
+                        },
+                        state: {
+                            type: 'str',
+                            description: 'Desired state',
+                            choices: ['merged', 'replaced'],
+                        },
+                    },
+                },
+                examples: '- cisco.ios.ios_acls:\n    config: []\n    state: merged',
+                return: {
+                    commands: { type: 'list', description: 'Commands sent to device' },
+                },
+            });
+
+            const result = await handler.handleTool('get_galaxy_plugin_doc', {
+                collection: 'cisco.ios',
+                plugin: 'ios_acls',
+                plugin_type: 'module',
+            });
+
+            expect(result.isError).toBeUndefined();
+            const text = result.content[0].text;
+            expect(text).toContain('cisco.ios.ios_acls');
+            expect(text).toContain('Manage ACLs');
+            expect(text).toContain('config');
+            expect(text).toContain('state');
+            expect(text).toContain('Examples');
+            expect(text).toContain('Return Values');
+            expect(text).toContain('commands');
+        });
+
+        it('returns error when specific plugin not found', async () => {
+            hoisted.galaxyInstance.getCollections.mockReturnValue([
+                {
+                    namespace: 'cisco',
+                    name: 'ios',
+                    version: '11.0.0',
+                    deprecated: false,
+                    downloadCount: 100,
+                },
+            ]);
+            hoisted.galaxyDocsInstance.getPluginDoc.mockResolvedValue(null);
+
+            const result = await handler.handleTool('get_galaxy_plugin_doc', {
+                collection: 'cisco.ios',
+                plugin: 'nonexistent',
+            });
+
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain('not found');
+        });
+
+        it('returns error when docs-blob fetch fails', async () => {
+            hoisted.galaxyInstance.getCollections.mockReturnValue([
+                {
+                    namespace: 'cisco',
+                    name: 'ios',
+                    version: '11.0.0',
+                    deprecated: false,
+                    downloadCount: 100,
+                },
+            ]);
+            hoisted.galaxyDocsInstance.getPluginTypes.mockResolvedValue(null);
+
+            const result = await handler.handleTool('get_galaxy_plugin_doc', {
+                collection: 'cisco.ios',
+            });
+
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain('Failed to fetch');
+        });
+
+        it('formats recursive suboptions in plugin documentation', async () => {
+            hoisted.galaxyInstance.getCollections.mockReturnValue([
+                {
+                    namespace: 'cisco',
+                    name: 'ios',
+                    version: '11.0.0',
+                    deprecated: false,
+                    downloadCount: 100,
+                },
+            ]);
+            hoisted.galaxyDocsInstance.getPluginDoc.mockResolvedValue({
+                doc: {
+                    short_description: 'Nested opts test',
+                    options: {
+                        network: {
+                            type: 'dict',
+                            description: 'Network config',
+                            required: true,
+                            suboptions: {
+                                address: { type: 'str', description: 'IP address', required: true },
+                                dns: {
+                                    type: 'dict',
+                                    description: 'DNS settings',
+                                    suboptions: {
+                                        servers: { type: 'list', description: 'DNS servers' },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+
+            const result = await handler.handleTool('get_galaxy_plugin_doc', {
+                collection: 'cisco.ios',
+                plugin: 'nested_mod',
+                plugin_type: 'module',
+            });
+
+            expect(result.isError).toBeUndefined();
+            const text = result.content[0].text;
+            expect(text).toContain('**network**');
+            expect(text).toContain('**address**');
+            expect(text).toContain('**dns**');
+            expect(text).toContain('**servers**');
+        });
+    });
+
+    describe('get_scm_plugin_doc', () => {
+        it('returns error for missing parameters', async () => {
+            const result = await handler.handleTool('get_scm_plugin_doc', {});
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain('Missing required parameters');
+        });
+
+        it('returns error for invalid collection format', async () => {
+            const result = await handler.handleTool('get_scm_plugin_doc', {
+                org: 'test-org',
+                repo: 'test-repo',
+                collection: 'invalid',
+            });
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain('namespace.name format');
+        });
+
+        it('lists plugin types when no plugin specified', async () => {
+            hoisted.scmDocsInstance.getPluginTypes.mockResolvedValue({
+                module: [
+                    {
+                        name: 'my_module',
+                        fullName: 'test.col.my_module',
+                        shortDescription: 'A module',
+                    },
+                ],
+                lookup: [
+                    {
+                        name: 'my_lookup',
+                        fullName: 'test.col.my_lookup',
+                        shortDescription: 'A lookup',
+                    },
+                ],
+            });
+
+            const result = await handler.handleTool('get_scm_plugin_doc', {
+                org: 'test-org',
+                repo: 'test-repo',
+                collection: 'test.col',
+            });
+
+            expect(result.isError).toBeUndefined();
+            expect(result.content[0].text).toContain('test.col');
+            expect(result.content[0].text).toContain('module (1)');
+            expect(result.content[0].text).toContain('lookup (1)');
+            expect(result.content[0].text).toContain('my_module');
+        });
+
+        it('returns full plugin documentation', async () => {
+            hoisted.scmDocsInstance.getPluginDoc.mockResolvedValue({
+                doc: {
+                    short_description: 'Manage resources',
+                    description: ['Configure resources on devices.'],
+                    author: ['Test Author'],
+                    options: {
+                        config: { type: 'list', description: 'Config entries' },
+                    },
+                },
+                examples: '- name: Example\n  test.col.my_module:',
+                return: {
+                    result: { type: 'str', description: 'The result' },
+                },
+            });
+
+            const result = await handler.handleTool('get_scm_plugin_doc', {
+                org: 'test-org',
+                repo: 'test-repo',
+                collection: 'test.col',
+                plugin: 'my_module',
+                plugin_type: 'module',
+            });
+
+            expect(result.isError).toBeUndefined();
+            const text = result.content[0].text;
+            expect(text).toContain('test.col.my_module');
+            expect(text).toContain('Manage resources');
+            expect(text).toContain('config');
+            expect(text).toContain('Examples');
+            expect(text).toContain('Return Values');
+        });
+
+        it('returns error when plugin not found', async () => {
+            hoisted.scmDocsInstance.getPluginDoc.mockResolvedValue(null);
+
+            const result = await handler.handleTool('get_scm_plugin_doc', {
+                org: 'test-org',
+                repo: 'test-repo',
+                collection: 'test.col',
+                plugin: 'nonexistent',
+            });
+
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain('not found');
+        });
+
+        it('returns error when indexing fails', async () => {
+            hoisted.scmDocsInstance.getPluginTypes.mockResolvedValue(null);
+
+            const result = await handler.handleTool('get_scm_plugin_doc', {
+                org: 'test-org',
+                repo: 'test-repo',
+                collection: 'test.col',
+            });
+
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain('Failed to index');
         });
     });
 });

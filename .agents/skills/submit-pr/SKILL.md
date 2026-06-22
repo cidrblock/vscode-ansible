@@ -33,24 +33,124 @@ Use a descriptive branch name (e.g., `feat/add-vault-commands`,
 If changes already exist on the current branch (e.g., from an in-progress
 session), cherry-pick or rebase them onto the new branch.
 
-### Step 2: Run lint and type checks
+### Step 2: Run the full CI check locally
 
 ```bash
-npm exec eslint -- .
-npm exec tsc -- -b
-npm exec vitest -- run
+npm run ci
 ```
+
+This single command runs skill codegen, TypeScript compilation, ESLint
+on the **entire project**, Vitest with coverage thresholds, and the
+esbuild production bundle. It mirrors what CI runs.
 
 **All checks must pass cleanly on all files** — not just the files you
 changed. If the branch has pre-existing violations (e.g., from an old base),
 rebase onto `upstream/next` first.
 
+**CRITICAL:** Run `npm run ci` as the **last step before committing**.
+Do not push if it fails. Do not claim quality gates passed without
+running this command. Partial lint (on changed files only) or skipping
+the build step has caused repeated CI failures.
+
 If violations are found:
 1. Run `npm exec eslint -- . --fix` to auto-fix what it can
 2. Manually fix remaining violations (type errors, test failures)
-3. Re-run until clean
+3. Re-run `npm run ci` until clean — do not shortcut with partial runs
 
-### Step 3: Commit with conventional commits
+**Rebuild reminder:** After any code change, `npm run ci` handles
+compilation and bundling. If testing interactively (e.g., reloading the
+extension), also run `npm run compile && npm run build` explicitly.
+
+### Step 3: Self-review the diff
+
+**This step is mandatory.** Do not skip it. Do not combine it with
+Step 2. After CI passes, review the **full PR diff** — all commits
+since the branch diverged from the base branch, not just the last
+commit or unstaged changes:
+
+```bash
+git diff upstream/next...HEAD
+```
+
+Read every changed line against these questions. For each question,
+name at least one specific file and line you verified. If you cannot,
+you haven't actually reviewed the diff.
+
+**Artifact-type sweep.** Before answering the questions below, list
+every distinct artifact type in the diff (e.g., TypeScript, YAML
+workflow, shell script, Dockerfile, JSON config). For each question,
+you must cite at least one file of *each* artifact type — not just
+TypeScript. If a question feels inapplicable to an artifact type,
+translate it:
+
+- "caller" in YAML means any action, job, or step that consumes
+  a declaration (e.g., `actions/checkout` consumes `permissions:`,
+  a downstream job consumes an output)
+- "type signature" in YAML means a key's implicit contract
+  (e.g., `permissions:` replaces defaults, not extends them;
+  `if:` expressions evaluate to boolean)
+- "constructed scenario" for shell means: what happens when
+  the command runs on a different shell (bash vs powershell),
+  a different OS (encoding, path separators), or with missing
+  input (empty files, failed prior steps)?
+- "dependencies pinned to intent" for actions means: does the
+  action tag, permissions scope, or `if:` condition express
+  exactly what you mean — not broader, not narrower?
+
+1. **Does every statement mean what it says?** Check every type
+   signature, return value, error code, version range, log level,
+   comment, and docstring. If the code declares it, the runtime must
+   honor it on every path.
+
+2. **Does this expose more than it should?** Check every log call,
+   error message, and user-facing string. Does it contain user content,
+   credentials, or internal state? Could a caller or log reader learn
+   something they shouldn't?
+
+3. **Would a caller be surprised?** Read every public function from
+   the caller's perspective. Can it return a value the type doesn't
+   cover? Does it mutate an argument the caller owns? Does it throw
+   where the signature implies it won't? Does it have side effects
+   (logging, I/O, global state) that its name or signature doesn't
+   advertise? Does it behave differently from sibling functions in
+   the same file?
+
+4. **Is everything still true after this change?** Diff comments and
+   docstrings against the code they describe. Did you rename something
+   but leave the old name in prose? Did you change behavior but leave
+   an old description?
+
+5. **Are dependencies and versions pinned to intent?** Check every
+   version range, action tag, and engine constraint. Does each one
+   express what you actually mean — not tighter, not looser?
+
+6. **Is there dead weight?** Check for unused imports, unreachable
+   branches, written-but-never-read variables, parameters accepted
+   but ignored.
+
+7. **Is this internally and externally consistent?** Within each
+   module: do all code paths use the same patterns (e.g., registry
+   lookups vs hardcoded values)? Are exports named consistently
+   (capitalization, prefixes)? Across the repo: do tsconfig targets,
+   engine floors, and conventions match sibling packages?
+
+8. **Would a constructed scenario break this?** For each public
+   function, construct one realistic failure case: an edge-case
+   input, a specific field combination after deletion/filtering,
+   an empty-but-not-falsy value. Trace it through the code path.
+   If it fails silently, sends a vacuous request, or produces a
+   return value that violates the declared type, that's a finding.
+
+9. **Do inherited contracts hold?** When extending a class or
+   implementing an interface, check that the subclass honors the
+   full runtime contract — not just the compiler-required members,
+   but expected behaviors (Error needs name and message, Disposable
+   needs dispose, EventEmitter needs cleanup). TypeScript enforces
+   structure; runtime contracts include semantics.
+
+Only proceed to Step 4 after completing this review.
+
+### Step 4: Commit with conventional commits
 
 Use the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
 format:
@@ -95,7 +195,7 @@ Include an issue reference in the commit body or PR body:
 related: #<issue_number>
 ```
 
-### Step 4: Push and create the pull request
+### Step 5: Push and create the pull request
 
 **Labels are required.** The repository requires at least one of these
 labels: `breaking`, `chore`, `feat`, `fix`. Map the conventional commit
@@ -118,9 +218,7 @@ gh pr create --base next --label "<type>" --title "conventional commit style tit
 - List each AI-generated artifact and its purpose
 
 ## Test plan
-- [ ] `npm exec eslint -- .` passes
-- [ ] `npm exec tsc -- -b` compiles cleanly
-- [ ] `npm exec vitest -- run` passes
+- [ ] `npm run ci` passes (compile + lint + test:coverage + build)
 - [ ] `npm run test:ui` passes (if e2e-relevant changes)
 
 related: #<issue_number>

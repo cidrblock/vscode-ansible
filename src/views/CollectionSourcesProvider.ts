@@ -1,7 +1,15 @@
 import * as vscode from 'vscode';
-import { GalaxyCollectionCache, GitHubCollectionCache } from '@ansible/core';
+import {
+    GalaxyCollectionCache,
+    GalaxyDocsCache,
+    GitHubCollectionCache,
+    SCMDocsCache,
+    buildCollectionSourcesOverviewPrompt,
+    buildGalaxySourceSummaryPrompt,
+    buildGithubOrgSourceSummaryPrompt,
+} from '@ansible/services';
+import type { GalaxyCollection, GitHubCollection, PluginInfo } from '@ansible/services';
 
-// Logging function
 let extensionLog: (msg: string) => void = console.log;
 
 /**
@@ -13,9 +21,8 @@ export function setCollectionSourcesLogFunction(logFn: (msg: string) => void): v
 }
 
 /**
- * Open the AI chat with a prompt pre-filled.
- * Falls back to clipboard if the command doesn't support the query parameter.
- * @param prompt - Prompt text to send to chat or copy to the clipboard
+ * Open the chat panel with a pre-filled prompt, falling back to clipboard.
+ * @param prompt - AI prompt string to send.
  */
 async function openChatWithPrompt(prompt: string): Promise<void> {
     try {
@@ -36,9 +43,11 @@ async function openChatWithPrompt(prompt: string): Promise<void> {
     }
 }
 
-/**
- * Represents a collection source in the tree
- */
+// ---------------------------------------------------------------------------
+// Source info (shared interface for both Galaxy and GitHub)
+// ---------------------------------------------------------------------------
+
+/** Metadata for a collection source (Galaxy or GitHub). */
 export interface CollectionSourceInfo {
     type: 'galaxy' | 'github';
     id: string;
@@ -48,34 +57,50 @@ export interface CollectionSourceInfo {
     isRefreshing: boolean;
 }
 
-/** Tree item representing a Galaxy or GitHub collection source. */
+// ---------------------------------------------------------------------------
+// Tree node types
+// ---------------------------------------------------------------------------
+
+type TreeNode =
+    | CollectionSourceNode
+    | GalaxyCollectionNode
+    | GalaxyPluginTypeNode
+    | GalaxyPluginNode
+    | GitHubCollectionNode
+    | GitHubPluginTypeNode
+    | GitHubPluginNode;
+
+/** Root-level node representing a collection source (Galaxy or GitHub org). */
 class CollectionSourceNode extends vscode.TreeItem {
+    public readonly nodeType = 'source' as const;
+
     /**
-     * Create a collection source node with count and refresh status.
-     * @param source - Metadata describing the collection source
+     * @param source - Source metadata.
+     * @param galaxyFilter - Active filter string, if any.
+     * @param galaxyFilterResultCount - Number of matching results.
      */
-    constructor(public readonly source: CollectionSourceInfo) {
-        super(source.name, vscode.TreeItemCollapsibleState.None);
+    constructor(
+        public readonly source: CollectionSourceInfo,
+        public readonly galaxyFilter?: string,
+        public readonly galaxyFilterResultCount?: number,
+    ) {
+        const isGalaxy = source.type === 'galaxy';
+        super(source.name, vscode.TreeItemCollapsibleState.Collapsed);
 
-        // Icon based on source type
-        if (source.type === 'galaxy') {
-            this.iconPath = new vscode.ThemeIcon('globe');
-        } else {
-            this.iconPath = new vscode.ThemeIcon('github');
-        }
+        this.iconPath = new vscode.ThemeIcon(isGalaxy ? 'globe' : 'github');
 
-        // Description with count
         if (source.isRefreshing) {
             this.description = 'Refreshing...';
+        } else if (isGalaxy && galaxyFilter) {
+            this.description = `filter: "${galaxyFilter}" (${String(galaxyFilterResultCount ?? 0)} results)`;
         } else {
             this.description = `${source.count.toLocaleString()} collections`;
         }
 
-        // Tooltip with last updated
         const tooltip = new vscode.MarkdownString();
         tooltip.appendMarkdown(`**${source.name}**\n\n`);
         tooltip.appendMarkdown(
-            `**Type:** ${source.type === 'galaxy' ? 'Ansible Galaxy' : 'GitHub Organization'}\n\n`,
+            `**Type:** ${isGalaxy ? 'Ansible Galaxy' : 'GitHub Organization'}\n\n`,
         );
         tooltip.appendMarkdown(`**Collections:** ${source.count.toLocaleString()}\n\n`);
         if (source.lastUpdated) {
@@ -83,29 +108,217 @@ class CollectionSourceNode extends vscode.TreeItem {
         }
         this.tooltip = tooltip;
 
-        // Context value for menus
-        this.contextValue = 'collectionSource';
+        if (isGalaxy) {
+            this.contextValue = galaxyFilter
+                ? 'collectionSourceGalaxyFiltered'
+                : 'collectionSourceGalaxy';
+        } else {
+            this.contextValue = 'collectionSourceGitHub';
+        }
     }
 }
 
-/** Tree view provider for Galaxy and GitHub collection sources. */
-export class CollectionSourcesProvider implements vscode.TreeDataProvider<CollectionSourceNode> {
-    private _onDidChangeTreeData = new vscode.EventEmitter<
-        CollectionSourceNode | undefined | null
-    >();
+/** Tree node representing a single Galaxy collection. */
+class GalaxyCollectionNode extends vscode.TreeItem {
+    public readonly nodeType = 'galaxyCollection' as const;
+
+    /** @param collection - Galaxy collection metadata. */
+    constructor(public readonly collection: GalaxyCollection) {
+        super(
+            `${collection.namespace}.${collection.name}`,
+            vscode.TreeItemCollapsibleState.Collapsed,
+        );
+        this.description = collection.version ? `v${collection.version}` : '';
+        this.iconPath = new vscode.ThemeIcon('library');
+        this.contextValue = 'galaxyCollection';
+
+        const tooltip = new vscode.MarkdownString();
+        tooltip.appendMarkdown(`**${collection.namespace}.${collection.name}**\n\n`);
+        if (collection.version) tooltip.appendMarkdown(`Version: ${collection.version}\n\n`);
+        tooltip.appendMarkdown(`Downloads: ${collection.downloadCount.toLocaleString()}\n\n`);
+        if (collection.deprecated) tooltip.appendMarkdown('*deprecated*\n\n');
+        this.tooltip = tooltip;
+    }
+}
+
+/** Tree node grouping plugins by type (module, lookup, etc.). */
+class GalaxyPluginTypeNode extends vscode.TreeItem {
+    public readonly nodeType = 'galaxyPluginType' as const;
+
+    /**
+     * @param pluginType - Plugin type name.
+     * @param plugins - Plugins of this type.
+     * @param collection - Parent collection.
+     */
+    constructor(
+        public readonly pluginType: string,
+        public readonly plugins: PluginInfo[],
+        public readonly collection: GalaxyCollection,
+    ) {
+        super(pluginType, vscode.TreeItemCollapsibleState.Collapsed);
+        this.description = `(${String(plugins.length)})`;
+        this.iconPath = new vscode.ThemeIcon('symbol-folder');
+        this.contextValue = 'galaxyPluginType';
+    }
+}
+
+/** Leaf tree node representing a single Galaxy plugin. */
+class GalaxyPluginNode extends vscode.TreeItem {
+    public readonly nodeType = 'galaxyPlugin' as const;
+
+    /**
+     * @param plugin - Plugin info.
+     * @param pluginType - Plugin type name.
+     * @param collection - Parent collection.
+     */
+    constructor(
+        public readonly plugin: PluginInfo,
+        public readonly pluginType: string,
+        public readonly collection: GalaxyCollection,
+    ) {
+        super(plugin.name, vscode.TreeItemCollapsibleState.None);
+        this.description = plugin.shortDescription;
+        this.iconPath = new vscode.ThemeIcon('symbol-method');
+        this.contextValue = 'galaxyPlugin';
+
+        const tooltip = new vscode.MarkdownString();
+        tooltip.appendMarkdown(`**`);
+        tooltip.appendText(plugin.fullName);
+        tooltip.appendMarkdown(`** *(${pluginType})*\n\n`);
+        if (plugin.shortDescription) {
+            tooltip.appendText(plugin.shortDescription);
+            tooltip.appendMarkdown('\n\n');
+        }
+        tooltip.appendMarkdown('Collection: ');
+        tooltip.appendText(`${collection.namespace}.${collection.name} v${collection.version}`);
+        this.tooltip = tooltip;
+
+        this.command = {
+            command: 'ansibleCollectionSources.showGalaxyPluginDoc',
+            title: 'Show Plugin Documentation',
+            arguments: [this],
+        };
+    }
+}
+
+/** Tree node representing a single GitHub collection (expandable to plugin types). */
+class GitHubCollectionNode extends vscode.TreeItem {
+    public readonly nodeType = 'githubCollection' as const;
+
+    /** @param collection - GitHub collection metadata. */
+    constructor(public readonly collection: GitHubCollection) {
+        super(
+            `${collection.namespace}.${collection.name}`,
+            vscode.TreeItemCollapsibleState.Collapsed,
+        );
+        this.description = collection.version ? `v${collection.version}` : '';
+        this.iconPath = new vscode.ThemeIcon('library');
+        this.contextValue = 'githubCollection';
+
+        const tooltip = new vscode.MarkdownString();
+        tooltip.appendMarkdown(`**${collection.namespace}.${collection.name}**\n\n`);
+        if (collection.version) tooltip.appendMarkdown(`Version: ${collection.version}\n\n`);
+        tooltip.appendMarkdown(`Org: ${collection.org}\n\n`);
+        if (collection.description) tooltip.appendMarkdown(collection.description);
+        this.tooltip = tooltip;
+    }
+}
+
+/** Tree node grouping plugins by type within a GitHub collection. */
+class GitHubPluginTypeNode extends vscode.TreeItem {
+    public readonly nodeType = 'githubPluginType' as const;
+
+    /**
+     * @param pluginType - Plugin type name.
+     * @param plugins - Plugins of this type.
+     * @param collection - Parent GitHub collection.
+     */
+    constructor(
+        public readonly pluginType: string,
+        public readonly plugins: PluginInfo[],
+        public readonly collection: GitHubCollection,
+    ) {
+        super(pluginType, vscode.TreeItemCollapsibleState.Collapsed);
+        this.description = `(${String(plugins.length)})`;
+        this.iconPath = new vscode.ThemeIcon('symbol-folder');
+        this.contextValue = 'githubPluginType';
+    }
+}
+
+/** Leaf tree node representing a single GitHub-sourced plugin. */
+class GitHubPluginNode extends vscode.TreeItem {
+    public readonly nodeType = 'githubPlugin' as const;
+
+    /**
+     * @param plugin - Plugin info.
+     * @param pluginType - Plugin type name.
+     * @param collection - Parent GitHub collection.
+     */
+    constructor(
+        public readonly plugin: PluginInfo,
+        public readonly pluginType: string,
+        public readonly collection: GitHubCollection,
+    ) {
+        super(plugin.name, vscode.TreeItemCollapsibleState.None);
+        this.description = plugin.shortDescription;
+        this.iconPath = new vscode.ThemeIcon('symbol-method');
+        this.contextValue = 'githubPlugin';
+
+        const tooltip = new vscode.MarkdownString();
+        tooltip.appendMarkdown(`**`);
+        tooltip.appendText(plugin.fullName);
+        tooltip.appendMarkdown(`** *(${pluginType})*\n\n`);
+        if (plugin.shortDescription) {
+            tooltip.appendText(plugin.shortDescription);
+            tooltip.appendMarkdown('\n\n');
+        }
+        tooltip.appendMarkdown('Collection: ');
+        tooltip.appendText(`${collection.namespace}.${collection.name} v${collection.version}`);
+        tooltip.appendMarkdown('\n\nSource: ');
+        tooltip.appendText(`${collection.org}/${repoNameFrom(collection.repository)}`);
+        this.tooltip = tooltip;
+
+        this.command = {
+            command: 'ansibleCollectionSources.showGitHubPluginDoc',
+            title: 'Show Plugin Documentation',
+            arguments: [this],
+        };
+    }
+}
+
+/**
+ * Extracts the repository name from a full GitHub repository URL or path.
+ * @param repository - Repository URL or path (e.g., "org/repo-name").
+ * @returns The repository name portion.
+ */
+function repoNameFrom(repository: string): string {
+    return repository.split('/').pop() ?? repository;
+}
+
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
+
+/** TreeDataProvider for the Collection Sources sidebar view. */
+export class CollectionSourcesProvider implements vscode.TreeDataProvider<TreeNode> {
+    private _onDidChangeTreeData = new vscode.EventEmitter<TreeNode | undefined | null>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
     private _galaxyCache: GalaxyCollectionCache;
+    private _galaxyDocsCache: GalaxyDocsCache;
     private _githubCache: GitHubCollectionCache;
+    private _scmDocsCache: SCMDocsCache;
     private _disposables: vscode.Disposable[] = [];
+    private _galaxyFilter: string | undefined;
 
-    /** Create the provider and initialize configured collection source caches. */
+    /** Initializes caches, loads GitHub orgs, and starts background refresh. */
     constructor() {
         this._galaxyCache = GalaxyCollectionCache.getInstance();
+        this._galaxyDocsCache = GalaxyDocsCache.getInstance();
         this._githubCache = GitHubCollectionCache.getInstance();
+        this._scmDocsCache = SCMDocsCache.getInstance();
         this._githubCache.setLogFunction(extensionLog);
 
-        // Listen for config changes
         this._disposables.push(
             vscode.workspace.onDidChangeConfiguration((e) => {
                 if (e.affectsConfiguration('ansibleEnvironments.githubCollectionOrgs')) {
@@ -115,34 +328,28 @@ export class CollectionSourcesProvider implements vscode.TreeDataProvider<Collec
             }),
         );
 
-        // Initialize
         this._initialize();
     }
 
-    /** Load configured GitHub organizations and trigger an initial refresh. */
+    /** Kicks off initial data loading. */
     private _initialize(): void {
         extensionLog('CollectionSourcesProvider: Initializing...');
-
-        // Initialize GitHub caches for configured orgs
         this._initializeGitHubOrgs();
-
         this.refresh();
     }
 
-    /** Load cached GitHub collection metadata for configured organizations. */
+    /** Loads GitHub org collections from on-disk cache. */
     private _initializeGitHubOrgs(): void {
         const orgs = this._getConfiguredOrgs();
         extensionLog(`CollectionSourcesProvider: Initializing GitHub orgs: ${orgs.join(', ')}`);
-
-        // Load from disk (don't force refresh on init)
         for (const org of orgs) {
             this._githubCache.loadFromDisk(org);
         }
     }
 
     /**
-     * Read configured GitHub organization names from workspace settings.
-     * @returns GitHub organization names used as collection sources
+     * Returns the configured GitHub org list from workspace settings.
+     * @returns Array of GitHub organization names.
      */
     private _getConfiguredOrgs(): string[] {
         const config = vscode.workspace.getConfiguration('ansibleEnvironments');
@@ -155,65 +362,54 @@ export class CollectionSourcesProvider implements vscode.TreeDataProvider<Collec
         );
     }
 
-    /** Notify the tree that source metadata changed. */
+    /** Fires a tree-data-changed event to refresh the UI. */
     public refresh(): void {
         this._onDidChangeTreeData.fire(undefined);
     }
 
-    /** Refresh Galaxy and all configured GitHub collection sources. */
+    /**
+     * Forces a full refresh of all Galaxy and GitHub sources.
+     * @returns Resolves when all sources have been refreshed.
+     */
     public async refreshAll(): Promise<void> {
         extensionLog('CollectionSourcesProvider: Refreshing all sources...');
-
-        // Refresh Galaxy
-        this.refresh(); // Update UI to show "Refreshing..."
+        this.refresh();
         await this._galaxyCache.forceRefresh();
-
-        // Refresh all GitHub orgs
         const orgs = this._getConfiguredOrgs();
         await this._githubCache.refreshAll(orgs);
-
         this.refresh();
         vscode.window.showInformationMessage('All collection sources refreshed');
     }
 
     /**
-     * Refresh a single collection source cache.
-     * @param source - Source metadata identifying Galaxy or a GitHub organization
+     * Refreshes a single collection source.
+     * @param source - The source to refresh.
      */
     public async refreshSource(source: CollectionSourceInfo): Promise<void> {
         extensionLog(`CollectionSourcesProvider: Refreshing source: ${source.id}`);
-
-        this.refresh(); // Update UI to show "Refreshing..."
-
+        this.refresh();
         if (source.type === 'galaxy') {
             await this._galaxyCache.forceRefresh();
         } else {
             await this._githubCache.refresh(source.id);
         }
-
         this.refresh();
         vscode.window.showInformationMessage(`${source.name} refreshed`);
     }
 
-    /** Prompt for a GitHub organization and add it to workspace settings. */
+    /** Prompts for a GitHub org name and adds it as a collection source. */
     public async addSource(): Promise<void> {
         const orgName = await vscode.window.showInputBox({
             prompt: 'Enter GitHub organization name',
             placeHolder: 'e.g., my-org',
             validateInput: (value) => {
-                if (!value || value.trim().length === 0) {
-                    return 'Organization name is required';
-                }
-                if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
-                    return 'Invalid organization name';
-                }
+                if (!value || value.trim().length === 0) return 'Organization name is required';
+                if (!/^[a-zA-Z0-9_-]+$/.test(value)) return 'Invalid organization name';
                 return undefined;
             },
         });
 
-        if (!orgName) {
-            return;
-        }
+        if (!orgName) return;
 
         const config = vscode.workspace.getConfiguration('ansibleEnvironments');
         const orgs = config.get<string[]>('githubCollectionOrgs') ?? [];
@@ -225,44 +421,94 @@ export class CollectionSourcesProvider implements vscode.TreeDataProvider<Collec
 
         orgs.push(orgName);
         await config.update('githubCollectionOrgs', orgs, vscode.ConfigurationTarget.Workspace);
-
-        // Refresh the new org
         await this._githubCache.refresh(orgName);
         this.refresh();
-
         vscode.window.showInformationMessage(`Added GitHub organization: ${orgName}`);
     }
 
+    // -------------------------------------------------------------------
+    // Tree data
+    // -------------------------------------------------------------------
+
     /**
-     * Return the tree item for a collection source node.
-     * @param element - Source node whose tree item should be displayed
-     * @returns The node itself because source nodes extend TreeItem
+     * Returns the TreeItem representation of a node.
+     * @param element - The tree node to represent.
+     * @returns The VS Code TreeItem.
      */
-    getTreeItem(element: CollectionSourceNode): vscode.TreeItem {
+    getTreeItem(element: TreeNode): vscode.TreeItem {
         return element;
     }
 
     /**
-     * Return Galaxy and configured GitHub collection sources.
-     * @returns Source nodes for all configured collection catalogs
+     * Returns children for a tree node, or root nodes if no parent.
+     * @param element - Parent node, or undefined for root.
+     * @returns Array of child nodes.
      */
-    getChildren(): CollectionSourceNode[] {
-        const sources: CollectionSourceNode[] = [];
+    getChildren(element?: TreeNode): TreeNode[] | Promise<TreeNode[]> {
+        if (!element) {
+            return Promise.resolve(this._getRootNodes());
+        }
 
-        // Add Galaxy source
+        if (element instanceof CollectionSourceNode) {
+            if (element.source.type === 'galaxy') {
+                return Promise.resolve(this._getGalaxyChildren());
+            }
+            return Promise.resolve(this._getGitHubChildren(element.source.id));
+        }
+
+        if (element instanceof GalaxyCollectionNode) {
+            return this._getCollectionChildren(element.collection);
+        }
+
+        if (element instanceof GalaxyPluginTypeNode) {
+            return Promise.resolve(
+                element.plugins.map(
+                    (p) => new GalaxyPluginNode(p, element.pluginType, element.collection),
+                ),
+            );
+        }
+
+        if (element instanceof GitHubCollectionNode) {
+            return this._getGitHubCollectionChildren(element.collection);
+        }
+
+        if (element instanceof GitHubPluginTypeNode) {
+            return Promise.resolve(
+                element.plugins.map(
+                    (p) => new GitHubPluginNode(p, element.pluginType, element.collection),
+                ),
+            );
+        }
+
+        return Promise.resolve([]);
+    }
+
+    /**
+     * Builds the root-level source nodes (Galaxy + GitHub orgs).
+     * @returns Array of root-level tree nodes.
+     */
+    private _getRootNodes(): TreeNode[] {
+        const sources: TreeNode[] = [];
+
         const galaxyCount = this._galaxyCache.getCollections().length;
+        const filterResults = this._galaxyFilter
+            ? this._galaxyCache.search(this._galaxyFilter)
+            : undefined;
         sources.push(
-            new CollectionSourceNode({
-                type: 'galaxy',
-                id: 'galaxy',
-                name: 'Ansible Galaxy',
-                count: galaxyCount,
-                lastUpdated: undefined, // Galaxy cache doesn't expose exact timestamp
-                isRefreshing: this._galaxyCache.isLoading(),
-            }),
+            new CollectionSourceNode(
+                {
+                    type: 'galaxy',
+                    id: 'galaxy',
+                    name: 'Ansible Galaxy',
+                    count: galaxyCount,
+                    lastUpdated: undefined,
+                    isRefreshing: this._galaxyCache.isLoading(),
+                },
+                this._galaxyFilter,
+                filterResults?.length,
+            ),
         );
 
-        // Add GitHub org sources
         const orgs = this._getConfiguredOrgs();
         for (const org of orgs) {
             sources.push(
@@ -281,41 +527,173 @@ export class CollectionSourcesProvider implements vscode.TreeDataProvider<Collec
     }
 
     /**
-     * Search across all sources
+     * Returns Galaxy collection nodes, filtered or top-10.
+     * @returns Array of Galaxy collection tree nodes.
      */
-    public async searchAllSources(): Promise<void> {
+    private _getGalaxyChildren(): TreeNode[] {
+        const collections = this._galaxyFilter
+            ? this._galaxyCache.search(this._galaxyFilter)
+            : this._galaxyCache.getTopCollections(10);
+        return collections.map((c) => new GalaxyCollectionNode(c));
+    }
+
+    /**
+     * Expands a Galaxy collection into plugin-type groupings.
+     * @param collection - The collection to expand.
+     * @returns Array of plugin-type tree nodes, or an error placeholder on failure.
+     */
+    private async _getCollectionChildren(collection: GalaxyCollection): Promise<TreeNode[]> {
+        const pluginTypes = await this._galaxyDocsCache.getPluginTypes(
+            collection.namespace,
+            collection.name,
+            collection.version,
+        );
+
+        if (!pluginTypes) {
+            const errorNode = new vscode.TreeItem(
+                'Failed to load plugin documentation',
+                vscode.TreeItemCollapsibleState.None,
+            );
+            errorNode.iconPath = new vscode.ThemeIcon('warning');
+            errorNode.tooltip = `Could not fetch docs-blob for ${collection.namespace}.${collection.name} v${collection.version}. Click the collection to retry.`;
+            return [errorNode as TreeNode];
+        }
+
+        return Object.entries(pluginTypes)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([type, plugins]) => new GalaxyPluginTypeNode(type, plugins, collection));
+    }
+
+    /**
+     * Returns GitHub collection nodes for an org.
+     * @param org - GitHub organization name.
+     * @returns Array of GitHub collection tree nodes.
+     */
+    private _getGitHubChildren(org: string): TreeNode[] {
+        return this._githubCache
+            .getCollections(org)
+            .slice()
+            .sort((a, b) => `${a.namespace}.${a.name}`.localeCompare(`${b.namespace}.${b.name}`))
+            .map((c) => new GitHubCollectionNode(c));
+    }
+
+    /**
+     * Expands a GitHub collection into plugin-type groupings via SCMDocsCache.
+     * @param collection - The GitHub collection to expand.
+     * @returns Array of plugin-type tree nodes, or an error placeholder on failure.
+     */
+    private async _getGitHubCollectionChildren(collection: GitHubCollection): Promise<TreeNode[]> {
+        const pluginTypes = await this._scmDocsCache.getPluginTypes(
+            collection.org,
+            repoNameFrom(collection.repository),
+            collection.namespace,
+            collection.name,
+        );
+
+        if (!pluginTypes) {
+            const errorNode = new vscode.TreeItem(
+                'Failed to load plugin documentation',
+                vscode.TreeItemCollapsibleState.None,
+            );
+            errorNode.iconPath = new vscode.ThemeIcon('warning');
+            errorNode.tooltip =
+                `Could not index ${collection.namespace}.${collection.name}. ` +
+                'Requires git and ansible-doc on PATH. Click to retry.';
+            return [errorNode as TreeNode];
+        }
+
+        return Object.entries(pluginTypes)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([type, plugins]) => new GitHubPluginTypeNode(type, plugins, collection));
+    }
+
+    // -------------------------------------------------------------------
+    // Galaxy filter
+    // -------------------------------------------------------------------
+
+    /** Prompts for a filter string and applies it to the Galaxy subtree. */
+    public async filterGalaxyCollections(): Promise<void> {
         const query = await vscode.window.showInputBox({
-            prompt: 'Search collections across all sources',
+            prompt: 'Filter Galaxy collections by name',
             placeHolder: 'e.g., network, kubernetes, azure',
+            value: this._galaxyFilter ?? '',
         });
 
-        if (!query) {
-            return;
-        }
+        if (query === undefined) return; // cancelled
 
-        await this._showSearchResults(query, undefined);
+        this._galaxyFilter = query || undefined; // empty string clears
+        this.refresh();
     }
 
+    /** Clears the active Galaxy filter and refreshes. */
+    public clearGalaxyFilter(): void {
+        this._galaxyFilter = undefined;
+        this.refresh();
+    }
+
+    // -------------------------------------------------------------------
+    // Install
+    // -------------------------------------------------------------------
+
     /**
-     * Search within a specific source
-     * @param source - Collection source to search within
+     * Installs a Galaxy collection from a tree node click.
+     * @param node - The Galaxy collection tree node.
      */
-    public async searchSource(source: CollectionSourceInfo): Promise<void> {
-        const query = await vscode.window.showInputBox({
-            prompt: `Search collections in ${source.name}`,
-            placeHolder: 'e.g., network, kubernetes',
-        });
+    public async installGalaxyCollection(node: GalaxyCollectionNode): Promise<void> {
+        const fqcn = `${node.collection.namespace}.${node.collection.name}`;
+        await this._installCollection(fqcn, 'galaxy');
+    }
 
-        if (!query) {
-            return;
+    /** Shows a QuickPick of all available collections for installation. */
+    public async installCollection(): Promise<void> {
+        interface InstallItem extends vscode.QuickPickItem {
+            installUrl: string;
+            sourceType: 'galaxy' | 'github';
         }
 
-        await this._showSearchResults(query, source);
+        const items: InstallItem[] = [];
+
+        for (const c of this._galaxyCache.getCollections().slice(0, 100)) {
+            items.push({
+                label: `$(globe) ${c.namespace}.${c.name}`,
+                description: c.version || '',
+                detail: c.deprecated
+                    ? '(deprecated)'
+                    : `${c.downloadCount.toLocaleString()} downloads`,
+                installUrl: `${c.namespace}.${c.name}`,
+                sourceType: 'galaxy',
+            });
+        }
+
+        const orgs = this._getConfiguredOrgs();
+        for (const org of orgs) {
+            for (const c of this._githubCache.getCollections(org)) {
+                items.push({
+                    label: `$(github) ${c.namespace}.${c.name}`,
+                    description: `${c.version} • ${c.org}`,
+                    detail: c.description,
+                    installUrl: c.installUrl,
+                    sourceType: 'github',
+                });
+            }
+        }
+
+        items.sort((a, b) => a.label.localeCompare(b.label));
+
+        const selected = await vscode.window.showQuickPick(items, {
+            placeHolder: 'Search and select a collection to install',
+            matchOnDescription: true,
+            matchOnDetail: true,
+        });
+
+        if (selected) {
+            await this._installCollection(selected.installUrl, selected.sourceType);
+        }
     }
 
     /**
-     * Install from a specific source
-     * @param source - Collection source whose catalog should be browsed
+     * Shows a QuickPick scoped to a single source for installation.
+     * @param source - The collection source to browse.
      */
     public async installFromSource(source: CollectionSourceInfo): Promise<void> {
         interface InstallItem extends vscode.QuickPickItem {
@@ -326,7 +704,6 @@ export class CollectionSourcesProvider implements vscode.TreeDataProvider<Collec
         const items: InstallItem[] = [];
 
         if (source.type === 'galaxy') {
-            // Galaxy collections
             for (const c of this._galaxyCache.getCollections()) {
                 items.push({
                     label: `${c.namespace}.${c.name}`,
@@ -339,7 +716,6 @@ export class CollectionSourcesProvider implements vscode.TreeDataProvider<Collec
                 });
             }
         } else {
-            // GitHub org collections
             for (const c of this._githubCache.getCollections(source.id)) {
                 items.push({
                     label: `${c.namespace}.${c.name}`,
@@ -358,7 +734,6 @@ export class CollectionSourcesProvider implements vscode.TreeDataProvider<Collec
             return;
         }
 
-        // Sort by name
         items.sort((a, b) => a.label.localeCompare(b.label));
 
         const selected = await vscode.window.showQuickPick(items, {
@@ -373,9 +748,167 @@ export class CollectionSourcesProvider implements vscode.TreeDataProvider<Collec
     }
 
     /**
-     * Show search results with install option
-     * @param query - Search text entered by the user
-     * @param source - Optional source limiting the search scope
+     * Runs `ade install` for a collection with progress feedback.
+     * @param installUrl - Collection FQCN or Git URL to install.
+     * @param sourceType - Whether the source is Galaxy or GitHub.
+     */
+    private async _installCollection(
+        installUrl: string,
+        sourceType: 'galaxy' | 'github',
+    ): Promise<void> {
+        extensionLog(`CollectionSourcesProvider: Installing ${installUrl} from ${sourceType}`);
+
+        await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Notification,
+                title: `Installing ${installUrl}...`,
+                cancellable: false,
+            },
+            async () => {
+                const { getCommandService } = await import('@ansible/services');
+                const commandService = getCommandService();
+
+                const result = await commandService.runTool('ade', ['install', installUrl]);
+
+                if (result.exitCode === 0) {
+                    vscode.window.showInformationMessage(`Successfully installed ${installUrl}`);
+                    vscode.commands.executeCommand('ansibleDevToolsCollections.refresh');
+                } else {
+                    vscode.window.showErrorMessage(
+                        `Failed to install ${installUrl}: ${result.stderr}`,
+                    );
+                }
+            },
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // Plugin doc — open in webview via PluginDocPanel
+    // -------------------------------------------------------------------
+
+    /**
+     * Fetches Galaxy plugin docs and opens the PluginDoc webview.
+     * @param node - The Galaxy plugin tree node.
+     * @param extensionUri - Extension URI for webview resource loading.
+     */
+    public async showGalaxyPluginDoc(
+        node: GalaxyPluginNode,
+        extensionUri: vscode.Uri,
+    ): Promise<void> {
+        const { collection, plugin, pluginType } = node;
+
+        await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Window,
+                title: `Loading ${plugin.fullName}...`,
+            },
+            async () => {
+                const data = await this._galaxyDocsCache.getPluginDoc(
+                    collection.namespace,
+                    collection.name,
+                    collection.version,
+                    plugin.fullName,
+                    pluginType,
+                );
+
+                if (!data) {
+                    vscode.window.showWarningMessage(
+                        `Could not load documentation for ${plugin.fullName}`,
+                    );
+                    return;
+                }
+
+                const { PluginDocPanel } = await import('@src/panels/PluginDocPanel');
+                PluginDocPanel.showWithData(extensionUri, plugin.fullName, pluginType, data);
+            },
+        );
+    }
+
+    /**
+     * Fetches GitHub collection plugin docs via SCMDocsCache and opens the PluginDoc webview.
+     * @param node - The GitHub plugin tree node.
+     * @param extensionUri - Extension URI for webview resource loading.
+     */
+    public async showGitHubPluginDoc(
+        node: GitHubPluginNode,
+        extensionUri: vscode.Uri,
+    ): Promise<void> {
+        const { collection, plugin, pluginType } = node;
+
+        await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Window,
+                title: `Loading ${plugin.fullName}...`,
+            },
+            async () => {
+                const data = await this._scmDocsCache.getPluginDoc(
+                    collection.org,
+                    repoNameFrom(collection.repository),
+                    collection.namespace,
+                    collection.name,
+                    plugin.fullName,
+                    pluginType,
+                );
+
+                if (!data) {
+                    vscode.window.showWarningMessage(
+                        `Could not load documentation for ${plugin.fullName}`,
+                    );
+                    return;
+                }
+
+                const { PluginDocPanel } = await import('@src/panels/PluginDocPanel');
+                PluginDocPanel.showWithData(extensionUri, plugin.fullName, pluginType, data);
+            },
+        );
+    }
+
+    /**
+     * Invalidates and refreshes the SCM docs cache for a GitHub collection.
+     * @param node - The GitHub collection tree node.
+     */
+    public refreshGitHubCollection(node: GitHubCollectionNode): void {
+        const { collection } = node;
+        this._scmDocsCache.invalidate(collection.org, repoNameFrom(collection.repository));
+        this.refresh();
+        vscode.window.showInformationMessage(
+            `Refreshing plugin docs for ${collection.namespace}.${collection.name}...`,
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // Search (legacy QuickPick flows — retained)
+    // -------------------------------------------------------------------
+
+    /** Searches all sources via QuickPick. */
+    public async searchAllSources(): Promise<void> {
+        const query = await vscode.window.showInputBox({
+            prompt: 'Search collections across all sources',
+            placeHolder: 'e.g., network, kubernetes, azure',
+        });
+
+        if (!query) return;
+        await this._showSearchResults(query, undefined);
+    }
+
+    /**
+     * Searches within a specific source via QuickPick.
+     * @param source - The source to search within.
+     */
+    public async searchSource(source: CollectionSourceInfo): Promise<void> {
+        const query = await vscode.window.showInputBox({
+            prompt: `Search collections in ${source.name}`,
+            placeHolder: 'e.g., network, kubernetes',
+        });
+
+        if (!query) return;
+        await this._showSearchResults(query, source);
+    }
+
+    /**
+     * Displays search results in a QuickPick with install option.
+     * @param query - The search query string.
+     * @param source - Optional source to scope the search.
      */
     private async _showSearchResults(query: string, source?: CollectionSourceInfo): Promise<void> {
         interface SearchResultItem extends vscode.QuickPickItem {
@@ -387,7 +920,6 @@ export class CollectionSourcesProvider implements vscode.TreeDataProvider<Collec
         const items: SearchResultItem[] = [];
         const q = query.toLowerCase();
 
-        // Search Galaxy
         if (!source || source.type === 'galaxy') {
             const galaxyResults = this._galaxyCache.getCollections().filter((c) => {
                 const fullName = `${c.namespace}.${c.name}`;
@@ -408,7 +940,6 @@ export class CollectionSourcesProvider implements vscode.TreeDataProvider<Collec
             }
         }
 
-        // Search GitHub
         if (!source || source.type === 'github') {
             const orgs = source ? [source.id] : this._getConfiguredOrgs();
             for (const org of orgs) {
@@ -438,7 +969,6 @@ export class CollectionSourcesProvider implements vscode.TreeDataProvider<Collec
             return;
         }
 
-        // Sort by name
         items.sort((a, b) => a.label.localeCompare(b.label));
 
         const selected = await vscode.window.showQuickPick(items, {
@@ -452,179 +982,36 @@ export class CollectionSourcesProvider implements vscode.TreeDataProvider<Collec
         }
     }
 
-    /**
-     * Install a collection
-     */
-    public async installCollection(): Promise<void> {
-        // Show unified search/install picker
-        interface InstallItem extends vscode.QuickPickItem {
-            installUrl: string;
-            sourceType: 'galaxy' | 'github';
-        }
+    // -------------------------------------------------------------------
+    // AI
+    // -------------------------------------------------------------------
 
-        const items: InstallItem[] = [];
-
-        // Add Galaxy collections
-        for (const c of this._galaxyCache.getCollections().slice(0, 100)) {
-            items.push({
-                label: `$(globe) ${c.namespace}.${c.name}`,
-                description: c.version || '',
-                detail: c.deprecated
-                    ? '(deprecated)'
-                    : `${c.downloadCount.toLocaleString()} downloads`,
-                installUrl: `${c.namespace}.${c.name}`,
-                sourceType: 'galaxy',
-            });
-        }
-
-        // Add GitHub collections
-        const orgs = this._getConfiguredOrgs();
-        for (const org of orgs) {
-            for (const c of this._githubCache.getCollections(org)) {
-                items.push({
-                    label: `$(github) ${c.namespace}.${c.name}`,
-                    description: `${c.version} • ${c.org}`,
-                    detail: c.description,
-                    installUrl: c.installUrl,
-                    sourceType: 'github',
-                });
-            }
-        }
-
-        // Sort by name
-        items.sort((a, b) => a.label.localeCompare(b.label));
-
-        const selected = await vscode.window.showQuickPick(items, {
-            placeHolder: 'Search and select a collection to install',
-            matchOnDescription: true,
-            matchOnDetail: true,
-        });
-
-        if (selected) {
-            await this._installCollection(selected.installUrl, selected.sourceType);
-        }
-    }
-
-    /**
-     * Install a collection using ade from the Python environment
-     * @param installUrl - Galaxy name or Git URL passed to `ade install`
-     * @param sourceType - Source type used only for logging and messaging
-     */
-    private async _installCollection(
-        installUrl: string,
-        sourceType: 'galaxy' | 'github',
-    ): Promise<void> {
-        extensionLog(`CollectionSourcesProvider: Installing ${installUrl} from ${sourceType}`);
-
-        // Use ade install for both Galaxy and GitHub
-        // ade install supports git+https:// URLs
-        await vscode.window.withProgress(
-            {
-                location: vscode.ProgressLocation.Notification,
-                title: `Installing ${installUrl}...`,
-                cancellable: false,
-            },
-            async () => {
-                const { getCommandService } = await import('@ansible/core');
-                const commandService = getCommandService();
-
-                const result = await commandService.runTool('ade', ['install', installUrl]);
-
-                if (result.exitCode === 0) {
-                    vscode.window.showInformationMessage(`Successfully installed ${installUrl}`);
-                    // Refresh installed collections view
-                    vscode.commands.executeCommand('ansibleInstalledCollections.refresh');
-                } else {
-                    vscode.window.showErrorMessage(
-                        `Failed to install ${installUrl}: ${result.stderr}`,
-                    );
-                }
-            },
-        );
-    }
-
-    /**
-     * Generate AI summary for all sources
-     */
+    /** Generates an AI overview prompt for all collection sources. */
     public async generateAiSummary(): Promise<void> {
         const orgs = this._getConfiguredOrgs();
         const galaxyCount = this._galaxyCache.getCollections().length;
-
-        let githubTotal = 0;
-        const orgDetails: string[] = [];
-        for (const org of orgs) {
-            const count = this._githubCache.getCount(org);
-            githubTotal += count;
-            orgDetails.push(`  - ${org}: ${String(count)} collections`);
-        }
-
-        const prompt = `I have access to Ansible collections from multiple sources:
-
-**Ansible Galaxy**: ${galaxyCount.toLocaleString()} collections available
-
-**GitHub Organizations** (${String(githubTotal)} total collections):
-${orgDetails.join('\n')}
-
-Please help me understand:
-1. What types of collections are typically found on Galaxy vs GitHub organizations?
-2. How do I decide which source to use for a particular use case?
-3. Are there any notable collections in these GitHub organizations I should know about?
-
-Use the \`search_available_collections\` MCP tool to search for collections if needed.
-
-**IMPORTANT**: To install any collection, use the \`install_ansible_collection\` MCP tool.
-Do NOT suggest using \`ansible-galaxy collection install\` directly.`;
-
+        const githubOrgs = orgs.map((org) => ({
+            name: org,
+            count: this._githubCache.getCount(org),
+        }));
+        const prompt = buildCollectionSourcesOverviewPrompt({ galaxyCount, githubOrgs });
         await openChatWithPrompt(prompt);
     }
 
     /**
-     * Generate AI summary for a specific source
-     * @param source - Collection source to summarize in chat
+     * Generates an AI summary prompt for a single collection source.
+     * @param source - The source to summarize.
      */
     public async generateSourceAiSummary(source: CollectionSourceInfo): Promise<void> {
-        let prompt: string;
-
-        if (source.type === 'galaxy') {
-            prompt = `Generate a summary of Ansible Galaxy as a collection source.
-
-Galaxy has ${source.count.toLocaleString()} collections available.
-
-Please describe:
-1. What is Ansible Galaxy and what types of collections are typically found there?
-2. How do I search for and evaluate collections on Galaxy?
-3. What are some of the most popular/useful collections on Galaxy?
-
-Use the \`list_source_collections\` MCP tool with source: "galaxy" to see the most popular collections.
-Use the \`search_available_collections\` MCP tool to search for specific collections.
-
-**IMPORTANT**: To install any collection, use the \`install_ansible_collection\` MCP tool.
-Do NOT suggest using \`ansible-galaxy collection install\` directly.`;
-        } else {
-            prompt = `Generate a summary of the "${source.id}" GitHub organization as an Ansible collection source.
-
-This organization has ${String(source.count)} collections.
-
-First, use the \`list_source_collections\` MCP tool with source: "${source.id}" to get the complete list of collections.
-
-Then describe:
-1. What is this organization and what types of collections do they provide?
-2. What are the main use cases for these collections?
-3. Which collections should I consider for my Ansible automation?
-
-Use the \`search_available_collections\` MCP tool to search for specific collections if needed.
-
-**IMPORTANT**: To install any collection, use the \`install_ansible_collection\` MCP tool.
-Do NOT suggest using \`ansible-galaxy collection install\` directly.`;
-        }
-
+        const prompt =
+            source.type === 'galaxy'
+                ? buildGalaxySourceSummaryPrompt(source.count)
+                : buildGithubOrgSourceSummaryPrompt(source.id, source.count);
         await openChatWithPrompt(prompt);
     }
 
-    /** Release configuration listeners registered by the provider. */
+    /** Disposes event listeners and subscriptions. */
     dispose(): void {
-        for (const d of this._disposables) {
-            d.dispose();
-        }
+        for (const d of this._disposables) d.dispose();
     }
 }
