@@ -44,18 +44,39 @@ interface McpToolDetailProps {
 
 export function McpToolDetail({ toolName }: McpToolDetailProps): React.JSX.Element {
     const [tools, setTools] = useState<McpToolInfo[]>([]);
+    const [result, setResult] = useState<string | null>(null);
+    const [running, setRunning] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         void api.getMcpTools().then(setTools).catch(() => {});
-    }, []);
+        setResult(null);
+    }, [toolName]);
 
     const tool = tools.find((t) => t.name === toolName);
 
     const handleCopy = (text: string) => {
         void navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleRun = async () => {
+        setRunning(true);
+        setResult(null);
+        try {
+            const output = await api.callMcpTool(toolName, {});
+            setResult(output);
+        } catch (err) {
+            setResult(`Error: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+            setRunning(false);
+        }
     };
 
     if (!tool) return <div style={navMuted}>Loading...</div>;
+
+    const hasRequiredArgs = tool.inputSchema?.required && (tool.inputSchema.required as string[]).length > 0;
 
     return (
         <div style={styles.detail}>
@@ -67,9 +88,22 @@ export function McpToolDetail({ toolName }: McpToolDetailProps): React.JSX.Eleme
                     <pre style={styles.schema}>{JSON.stringify(tool.inputSchema, null, 2)}</pre>
                 </div>
             )}
-            <button style={styles.copyBtn} onClick={() => handleCopy(`Use the ${tool.name} MCP tool`)}>
-                Copy prompt
-            </button>
+            <div style={styles.actions}>
+                {!hasRequiredArgs && (
+                    <button style={styles.runBtn} onClick={() => void handleRun()} disabled={running}>
+                        {running ? 'Running...' : 'Run (no args)'}
+                    </button>
+                )}
+                <button style={styles.copyBtn} onClick={() => handleCopy(`Use the ${tool.name} MCP tool`)}>
+                    {copied ? '✓ Copied' : 'Copy prompt'}
+                </button>
+            </div>
+            {result !== null && (
+                <div style={styles.schemaSection}>
+                    <div style={styles.schemaLabel}>Result</div>
+                    <pre style={styles.resultPre}>{result}</pre>
+                </div>
+            )}
         </div>
     );
 }
@@ -83,5 +117,8 @@ const styles: Record<string, React.CSSProperties> = {
     schemaSection: { display: 'flex', flexDirection: 'column', gap: '4px' },
     schemaLabel: { fontSize: 'var(--navita-font-size-xs)', fontWeight: 600, color: 'var(--navita-text-secondary)' },
     schema: { padding: '8px', background: 'var(--navita-bg-tertiary)', borderRadius: 'var(--navita-radius-sm)', fontSize: '10px', fontFamily: 'var(--navita-font-mono)', color: 'var(--navita-text-tertiary)', maxHeight: '250px', overflowY: 'auto' as const, userSelect: 'text' },
-    copyBtn: { alignSelf: 'flex-start', padding: '4px 12px', background: 'var(--navita-bg-hover)', borderRadius: 'var(--navita-radius-sm)', fontSize: 'var(--navita-font-size-xs)', color: 'var(--navita-text-secondary)' },
+    actions: { display: 'flex', gap: '8px' },
+    runBtn: { padding: '4px 12px', background: 'var(--navita-accent)', color: 'var(--navita-accent-fg)', borderRadius: 'var(--navita-radius-sm)', fontSize: 'var(--navita-font-size-xs)', border: 'none', cursor: 'pointer' },
+    copyBtn: { padding: '4px 12px', background: 'var(--navita-bg-hover)', borderRadius: 'var(--navita-radius-sm)', fontSize: 'var(--navita-font-size-xs)', color: 'var(--navita-text-secondary)', border: 'none', cursor: 'pointer' },
+    resultPre: { padding: '8px', background: 'var(--navita-bg-tertiary)', borderRadius: 'var(--navita-radius-sm)', fontSize: '11px', fontFamily: 'var(--navita-font-mono)', color: 'var(--navita-text-primary)', maxHeight: '400px', overflowY: 'auto' as const, whiteSpace: 'pre-wrap' as const, userSelect: 'text' },
 };

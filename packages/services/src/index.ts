@@ -118,6 +118,7 @@ export { GalaxyDocsCache } from './GalaxyDocsCache';
 export { GitHubCollectionCache } from './GitHubCollectionCache';
 export { SCMDocsCache } from './SCMDocsCache';
 export { SkillRegistry, _resetGitHubToken } from './SkillRegistry';
+export { PythonStandaloneService } from './PythonStandaloneService';
 export { discoverPlaybooks } from './PlaybookDiscovery';
 export type { DiscoveredPlaybook } from './PlaybookDiscovery';
 

@@ -64,6 +64,15 @@ export const navMuted: CSSProperties = {
     fontSize: 'var(--navita-font-size-sm)',
 };
 
+export const navBadge: CSSProperties = {
+    fontSize: '10px',
+    padding: '1px 6px',
+    borderRadius: '8px',
+    background: 'var(--navita-bg-tertiary)',
+    color: 'var(--navita-text-tertiary)',
+    flexShrink: 0,
+};
+
 export const navSearchRow: CSSProperties = {
     display: 'flex',
     gap: '4px',

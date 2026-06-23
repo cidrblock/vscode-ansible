@@ -18,6 +18,6 @@
   "include": ["src/main/**/*", "src/shared/**/*"],
   "exclude": ["node_modules", "out", "dist"],
   "references": [
-    { "path": "../core" }
+    { "path": "../services" }
   ]
 }

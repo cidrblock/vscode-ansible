@@ -93,8 +93,6 @@ const extensionTargets = [
 
 const navitaMainAlias = {
     '@src': path.join(ROOT, 'packages', 'navita', 'src', 'main'),
-    '@ansible/core/out': path.join(ROOT, 'packages', 'core', 'src'),
-    '@ansible/core': path.join(ROOT, 'packages', 'core', 'src'),
 };
 
 /** @type {esbuild.BuildOptions[]} */

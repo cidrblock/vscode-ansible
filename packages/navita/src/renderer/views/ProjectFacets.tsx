@@ -16,12 +16,13 @@ export function ProjectFacets({ selected, onSelect }: ProjectFacetsProps): React
     }, []);
 
     const loadBadges = async () => {
-        const [env, devTools, collections, playbooks, mcpStatus] = await Promise.all([
+        const [env, devTools, collections, playbooks, mcpStatus, skills] = await Promise.all([
             api.getEnvironmentInfo().catch(() => null),
             api.getDevToolsPackages().catch(() => []),
             api.getCollections().catch(() => []),
             api.getPlaybooks().catch(() => []),
             api.getMcpStatus().catch(() => ({ running: false, toolCount: 0 })),
+            api.getSkills().catch(() => []),
         ]);
         setBadges({
             env: env?.displayName ?? env?.pythonPath ?? '',
@@ -29,6 +30,7 @@ export function ProjectFacets({ selected, onSelect }: ProjectFacetsProps): React
             collections: collections.length > 0 ? String(collections.length) : '',
             playbooks: playbooks.length > 0 ? String(playbooks.length) : '',
             'ai-tools': mcpStatus.running ? String(mcpStatus.toolCount) : '',
+            skills: skills.length > 0 ? String(skills.length) : '',
         });
     };
 
@@ -40,6 +42,7 @@ export function ProjectFacets({ selected, onSelect }: ProjectFacetsProps): React
         { id: 'creator', label: 'Creator' },
         { id: 'playbooks', label: 'Playbooks', badge: badges.playbooks || undefined },
         { id: 'ai-tools', label: 'AI Tools', badge: badges['ai-tools'] || undefined },
+        { id: 'skills', label: 'AI Skills', badge: badges.skills || undefined },
     ];
 
     return <SectionList sections={sections} activeId={selected} onSelect={onSelect} />;

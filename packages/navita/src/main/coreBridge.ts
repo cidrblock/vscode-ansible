@@ -19,13 +19,16 @@ import {
     CreatorService,
     GalaxyCollectionCache,
     GitHubCollectionCache,
+    SkillRegistry,
 } from '@ansible/services';
+import { buildSkillLoadPrompt, buildSkillClipboardPrompt } from '@ansible/common';
 import type {
     CollectionInfo,
     PluginInfo,
     PluginData,
     DevToolPackage,
     SchemaNode,
+    SkillEntry,
 } from '@ansible/services';
 import { IPC_CHANNELS } from '../shared/types';
 import type {
@@ -46,17 +49,32 @@ import type {
 } from '../shared/types';
 import { PlaybookRunner } from './playbookRunner';
 import { loadSettings, saveSettings as persistSettings } from './settingsStore';
-import { initializeMcpHost, getMcpTools, callMcpTool, getMcpStatus, restartMcpHost, generateMcpConfigSnippet } from './mcpHost';
+import {
+    initializeMcpHost,
+    getMcpTools,
+    callMcpTool,
+    getMcpStatus,
+    restartMcpHost,
+    generateMcpConfigSnippet,
+} from './mcpHost';
 import { startLsp, stopLsp, getLspStatus, restartLsp } from './lspHost';
 
 let playbookRunner: PlaybookRunner | null = null;
 let mainWindowRef: BrowserWindow | null = null;
 
+/**
+ *
+ * @param message
+ */
 function log(message: string): void {
     const ts = new Date().toISOString();
     console.log(`[${ts}] ${message}`);
 }
 
+/**
+ *
+ * @param mainWindow
+ */
 export function initializeCoreBridge(mainWindow: BrowserWindow): void {
     mainWindowRef = mainWindow;
 
@@ -84,6 +102,7 @@ export function initializeCoreBridge(mainWindow: BrowserWindow): void {
     registerExecutionEnvHandlers();
     registerCreatorHandlers();
     registerMcpHandlers();
+    registerSkillHandlers();
     registerLspHandlers();
     registerSettingsHandlers();
     registerProjectHandlers();
@@ -92,6 +111,9 @@ export function initializeCoreBridge(mainWindow: BrowserWindow): void {
     void initializeServices();
 }
 
+/**
+ *
+ */
 export function disposeCoreBridge(): void {
     if (playbookRunner) {
         playbookRunner.stop();
@@ -101,13 +123,18 @@ export function disposeCoreBridge(): void {
     mainWindowRef = null;
 }
 
+/**
+ *
+ */
 async function initializeServices(): Promise<void> {
     try {
         const collections = CollectionsService.getInstance();
         await collections.refresh();
         log(`coreBridge: loaded ${String(collections.listCollectionNames().length)} collections`);
     } catch (err) {
-        log(`coreBridge: collections init failed: ${err instanceof Error ? err.message : String(err)}`);
+        log(
+            `coreBridge: collections init failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
     }
 
     const settings = loadSettings();
@@ -120,6 +147,9 @@ async function initializeServices(): Promise<void> {
 
 // --- Collection IPC Handlers ---
 
+/**
+ *
+ */
 function registerCollectionHandlers(): void {
     ipcMain.handle(IPC_CHANNELS.GET_COLLECTIONS, (): CollectionInfo[] => {
         const collections = CollectionsService.getInstance();
@@ -130,13 +160,19 @@ function registerCollectionHandlers(): void {
         });
     });
 
-    ipcMain.handle(IPC_CHANNELS.GET_PLUGINS, (_event, collection: string, pluginType: string): PluginInfo[] => {
-        return CollectionsService.getInstance().getPlugins(collection, pluginType);
-    });
+    ipcMain.handle(
+        IPC_CHANNELS.GET_PLUGINS,
+        (_event, collection: string, pluginType: string): PluginInfo[] => {
+            return CollectionsService.getInstance().getPlugins(collection, pluginType);
+        },
+    );
 
-    ipcMain.handle(IPC_CHANNELS.GET_PLUGIN_DOC, async (_event, pluginName: string, pluginType: string): Promise<PluginData | null> => {
-        return CollectionsService.getInstance().getPluginDocumentation(pluginName, pluginType);
-    });
+    ipcMain.handle(
+        IPC_CHANNELS.GET_PLUGIN_DOC,
+        async (_event, pluginName: string, pluginType: string): Promise<PluginData | null> => {
+            return CollectionsService.getInstance().getPluginDocumentation(pluginName, pluginType);
+        },
+    );
 
     ipcMain.handle(IPC_CHANNELS.SEARCH_PLUGINS, (_event, query: string): SearchResult[] => {
         const results = CollectionsService.getInstance().searchPlugins(query);
@@ -154,48 +190,69 @@ function registerCollectionHandlers(): void {
 
 // --- Collection Source IPC Handlers ---
 
+/**
+ *
+ */
 function registerCollectionSourceHandlers(): void {
-    ipcMain.handle(IPC_CHANNELS.SEARCH_GALAXY_COLLECTIONS, (_event, query: string): GalaxyCollectionInfo[] => {
-        try {
-            const cache = GalaxyCollectionCache.getInstance();
-            const results = cache.search(query);
-            return results.slice(0, 50).map((c) => ({
-                name: `${c.namespace}.${c.name}`,
-                version: c.version ?? '',
-            }));
-        } catch (err) {
-            log(`coreBridge: Galaxy search failed: ${err instanceof Error ? err.message : String(err)}`);
-            return [];
-        }
-    });
+    ipcMain.handle(
+        IPC_CHANNELS.SEARCH_GALAXY_COLLECTIONS,
+        (_event, query: string): GalaxyCollectionInfo[] => {
+            try {
+                const cache = GalaxyCollectionCache.getInstance();
+                const results = cache.search(query);
+                return results.slice(0, 50).map((c) => ({
+                    name: `${c.namespace}.${c.name}`,
+                    version: c.version ?? '',
+                }));
+            } catch (err) {
+                log(
+                    `coreBridge: Galaxy search failed: ${err instanceof Error ? err.message : String(err)}`,
+                );
+                return [];
+            }
+        },
+    );
 
-    ipcMain.handle(IPC_CHANNELS.SEARCH_GITHUB_COLLECTIONS, (_event, query: string): GitHubCollectionInfo[] => {
-        try {
-            const cache = GitHubCollectionCache.getInstance();
-            const results = cache.search(query);
-            return results.slice(0, 50).map((c) => ({
-                name: `${c.namespace}.${c.name}`,
-                description: c.description,
-            }));
-        } catch (err) {
-            log(`coreBridge: GitHub search failed: ${err instanceof Error ? err.message : String(err)}`);
-            return [];
-        }
-    });
+    ipcMain.handle(
+        IPC_CHANNELS.SEARCH_GITHUB_COLLECTIONS,
+        (_event, query: string): GitHubCollectionInfo[] => {
+            try {
+                const cache = GitHubCollectionCache.getInstance();
+                const results = cache.search(query);
+                return results.slice(0, 50).map((c) => ({
+                    name: `${c.namespace}.${c.name}`,
+                    description: c.description,
+                }));
+            } catch (err) {
+                log(
+                    `coreBridge: GitHub search failed: ${err instanceof Error ? err.message : String(err)}`,
+                );
+                return [];
+            }
+        },
+    );
 
-    ipcMain.handle(IPC_CHANNELS.INSTALL_COLLECTION, async (_event, name: string): Promise<string> => {
-        try {
-            const cmdService = getCommandService();
-            const result = await cmdService.runTool('ade', ['install', name]);
-            return result.stdout || 'Installed successfully.';
-        } catch (err) {
-            throw new Error(`Install failed: ${err instanceof Error ? err.message : String(err)}`);
-        }
-    });
+    ipcMain.handle(
+        IPC_CHANNELS.INSTALL_COLLECTION,
+        async (_event, name: string): Promise<string> => {
+            try {
+                const cmdService = getCommandService();
+                const result = await cmdService.runTool('ade', ['install', name]);
+                return result.stdout || 'Installed successfully.';
+            } catch (err) {
+                throw new Error(
+                    `Install failed: ${err instanceof Error ? err.message : String(err)}`,
+                );
+            }
+        },
+    );
 }
 
 // --- Playbook IPC Handlers ---
 
+/**
+ *
+ */
 function registerPlaybookHandlers(): void {
     ipcMain.handle(IPC_CHANNELS.GET_PLAYBOOKS, async (): Promise<PlaybookInfo[]> => {
         const workspaceRoot = getCommandService().getWorkspaceRoot();
@@ -205,30 +262,43 @@ function registerPlaybookHandlers(): void {
         return playbooks;
     });
 
-    ipcMain.handle(IPC_CHANNELS.RUN_PLAYBOOK, async (_event, playbookPath: string, config: PlaybookConfig): Promise<void> => {
-        if (playbookRunner) playbookRunner.stop();
-        const workspaceRoot = getCommandService().getWorkspaceRoot();
-        if (!workspaceRoot) throw new Error('No workspace root configured');
+    ipcMain.handle(
+        IPC_CHANNELS.RUN_PLAYBOOK,
+        async (_event, playbookPath: string, config: PlaybookConfig): Promise<void> => {
+            if (playbookRunner) playbookRunner.stop();
+            const workspaceRoot = getCommandService().getWorkspaceRoot();
+            if (!workspaceRoot) throw new Error('No workspace root configured');
 
-        playbookRunner = new PlaybookRunner({
-            playbookPath,
-            workspaceRoot,
-            callbackPluginsPath: findCallbackPluginsPath(),
-            config,
-            onEvent: (event: ProgressEvent) => { mainWindowRef?.webContents.send(IPC_CHANNELS.PLAYBOOK_EVENT, event); },
-            onComplete: () => { mainWindowRef?.webContents.send(IPC_CHANNELS.PLAYBOOK_COMPLETE); },
-            log,
-        });
-        await playbookRunner.start();
-    });
+            playbookRunner = new PlaybookRunner({
+                playbookPath,
+                workspaceRoot,
+                callbackPluginsPath: findCallbackPluginsPath(),
+                config,
+                onEvent: (event: ProgressEvent) => {
+                    mainWindowRef?.webContents.send(IPC_CHANNELS.PLAYBOOK_EVENT, event);
+                },
+                onComplete: () => {
+                    mainWindowRef?.webContents.send(IPC_CHANNELS.PLAYBOOK_COMPLETE);
+                },
+                log,
+            });
+            await playbookRunner.start();
+        },
+    );
 
     ipcMain.handle(IPC_CHANNELS.STOP_PLAYBOOK, (): void => {
-        if (playbookRunner) { playbookRunner.stop(); playbookRunner = null; }
+        if (playbookRunner) {
+            playbookRunner.stop();
+            playbookRunner = null;
+        }
     });
 }
 
 // --- Environment IPC Handlers ---
 
+/**
+ *
+ */
 function registerEnvironmentHandlers(): void {
     ipcMain.handle(IPC_CHANNELS.GET_ENVIRONMENT_INFO, (): EnvironmentInfo => {
         const cached = getCachedEnvironment();
@@ -253,7 +323,9 @@ function registerEnvironmentHandlers(): void {
             const service = PythonStandaloneService.getInstance();
             return await service.discover(workspaceRoot);
         } catch (err) {
-            log(`coreBridge: env discovery failed: ${err instanceof Error ? err.message : String(err)}`);
+            log(
+                `coreBridge: env discovery failed: ${err instanceof Error ? err.message : String(err)}`,
+            );
             return [];
         }
     });
@@ -266,6 +338,9 @@ function registerEnvironmentHandlers(): void {
 
 // --- Execution Environment IPC Handlers ---
 
+/**
+ *
+ */
 function registerExecutionEnvHandlers(): void {
     ipcMain.handle(IPC_CHANNELS.LIST_EXECUTION_ENVIRONMENTS, async (): Promise<EEInfo[]> => {
         try {
@@ -286,32 +361,47 @@ function registerExecutionEnvHandlers(): void {
         }
     });
 
-    ipcMain.handle(IPC_CHANNELS.GET_EE_DETAILS, async (_event, eeName: string): Promise<EEDetailInfo> => {
-        try {
-            const eeService = ExecutionEnvService.getInstance();
-            const [info, collections, pythonPkgs, systemPkgs] = await Promise.all([
-                eeService.getInfo(eeName),
-                eeService.getCollections(eeName),
-                eeService.getPythonPackages(eeName),
-                eeService.getSystemPackages(eeName),
-            ]);
-            return {
-                ansibleVersion: info.ansible ?? null,
-                osRelease: info.os ?? null,
-                imageName: info.image ?? null,
-                collections,
-                pythonPackages: pythonPkgs,
-                systemPackages: systemPkgs,
-            };
-        } catch (err) {
-            log(`coreBridge: EE inspect failed: ${err instanceof Error ? err.message : String(err)}`);
-            return { ansibleVersion: null, osRelease: null, imageName: null, collections: [], pythonPackages: [], systemPackages: [] };
-        }
-    });
+    ipcMain.handle(
+        IPC_CHANNELS.GET_EE_DETAILS,
+        async (_event, eeName: string): Promise<EEDetailInfo> => {
+            try {
+                const eeService = ExecutionEnvService.getInstance();
+                const [info, collections, pythonPkgs, systemPkgs] = await Promise.all([
+                    eeService.getInfo(eeName),
+                    eeService.getCollections(eeName),
+                    eeService.getPythonPackages(eeName),
+                    eeService.getSystemPackages(eeName),
+                ]);
+                return {
+                    ansibleVersion: info.ansible ?? null,
+                    osRelease: info.os ?? null,
+                    imageName: info.image ?? null,
+                    collections,
+                    pythonPackages: pythonPkgs,
+                    systemPackages: systemPkgs,
+                };
+            } catch (err) {
+                log(
+                    `coreBridge: EE inspect failed: ${err instanceof Error ? err.message : String(err)}`,
+                );
+                return {
+                    ansibleVersion: null,
+                    osRelease: null,
+                    imageName: null,
+                    collections: [],
+                    pythonPackages: [],
+                    systemPackages: [],
+                };
+            }
+        },
+    );
 }
 
 // --- Creator IPC Handlers ---
 
+/**
+ *
+ */
 function registerCreatorHandlers(): void {
     ipcMain.handle(IPC_CHANNELS.GET_CREATOR_COMMANDS, async (): Promise<CreatorCommand[]> => {
         try {
@@ -320,24 +410,40 @@ function registerCreatorHandlers(): void {
             if (!schema) return [];
             return flattenCreatorSchema(schema);
         } catch (err) {
-            log(`coreBridge: Creator schema failed: ${err instanceof Error ? err.message : String(err)}`);
+            log(
+                `coreBridge: Creator schema failed: ${err instanceof Error ? err.message : String(err)}`,
+            );
             return [];
         }
     });
 
-    ipcMain.handle(IPC_CHANNELS.RUN_CREATOR_COMMAND, async (_event, commandName: string, params: Record<string, string>): Promise<string> => {
-        try {
-            const creator = CreatorService.getInstance();
-            const cmdPath = commandName.split('.');
-            const positionalArgs = creator.getPositionalArgs(cmdPath);
-            const result = await creator.runCommand(cmdPath, { ...params, overwrite: true }, positionalArgs);
-            return String(result ?? 'Completed successfully.');
-        } catch (err) {
-            throw new Error(`Creator failed: ${err instanceof Error ? err.message : String(err)}`);
-        }
-    });
+    ipcMain.handle(
+        IPC_CHANNELS.RUN_CREATOR_COMMAND,
+        async (_event, commandName: string, params: Record<string, string>): Promise<string> => {
+            try {
+                const creator = CreatorService.getInstance();
+                const cmdPath = commandName.split('.');
+                const positionalArgs = creator.getPositionalArgs(cmdPath);
+                const result = await creator.runCommand(
+                    cmdPath,
+                    { ...params, overwrite: true },
+                    positionalArgs,
+                );
+                return String(result ?? 'Completed successfully.');
+            } catch (err) {
+                throw new Error(
+                    `Creator failed: ${err instanceof Error ? err.message : String(err)}`,
+                );
+            }
+        },
+    );
 }
 
+/**
+ *
+ * @param schema
+ * @param parentPath
+ */
 function flattenCreatorSchema(schema: SchemaNode, parentPath: string[] = []): CreatorCommand[] {
     const commands: CreatorCommand[] = [];
     if (schema.subcommands) {
@@ -354,7 +460,8 @@ function flattenCreatorSchema(schema: SchemaNode, parentPath: string[] = []): Cr
                             description: pSchema.description,
                             type: pSchema.type ?? 'string',
                             required: sub.parameters.required?.includes(pName) ?? false,
-                            defaultValue: pSchema.default != null ? String(pSchema.default) : undefined,
+                            defaultValue:
+                                pSchema.default != null ? String(pSchema.default) : undefined,
                             choices: pSchema.enum,
                         });
                     }
@@ -373,19 +480,85 @@ function flattenCreatorSchema(schema: SchemaNode, parentPath: string[] = []): Cr
 
 // --- MCP IPC Handlers ---
 
+/**
+ *
+ */
 function registerMcpHandlers(): void {
     ipcMain.handle(IPC_CHANNELS.GET_MCP_TOOLS, () => getMcpTools());
-    ipcMain.handle(IPC_CHANNELS.CALL_MCP_TOOL, async (_event, toolName: string, args: Record<string, unknown>) => callMcpTool(toolName, args));
+    ipcMain.handle(
+        IPC_CHANNELS.CALL_MCP_TOOL,
+        async (_event, toolName: string, args: Record<string, unknown>) =>
+            callMcpTool(toolName, args),
+    );
     ipcMain.handle(IPC_CHANNELS.GET_MCP_STATUS, () => getMcpStatus());
     ipcMain.handle(IPC_CHANNELS.RESTART_MCP, async () => restartMcpHost());
-    ipcMain.handle(IPC_CHANNELS.GET_MCP_CONFIG_SNIPPET, (_event, format: string) => generateMcpConfigSnippet(format));
+    ipcMain.handle(IPC_CHANNELS.GET_MCP_CONFIG_SNIPPET, (_event, format: string) =>
+        generateMcpConfigSnippet(format),
+    );
+}
+
+// --- Skills IPC Handlers ---
+
+/**
+ *
+ */
+function registerSkillHandlers(): void {
+    const registry = SkillRegistry.getInstance();
+
+    ipcMain.handle(IPC_CHANNELS.GET_SKILLS, async () => {
+        await registry.ensureLoaded();
+        return registry.getAllSkills().map((s: SkillEntry) => ({
+            id: s.id,
+            source: s.source,
+            module: s.module,
+            name: s.name,
+            description: s.description,
+            category: s.category,
+            trust: s.trust,
+            triggers: s.triggers,
+            tags: s.tags,
+            domain: s.domain,
+        }));
+    });
+
+    ipcMain.handle(IPC_CHANNELS.GET_SKILL_SOURCES, () => {
+        return registry.getSources().map((s) => ({
+            id: s.id,
+            type: s.type,
+            url: s.url,
+            trust: s.trust,
+        }));
+    });
+
+    ipcMain.handle(IPC_CHANNELS.REFRESH_SKILLS, async () => {
+        await registry.refresh();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.GET_SKILL_CONTENT, async (_event, skillId: string) => {
+        return registry.loadSkillContent(skillId);
+    });
+
+    ipcMain.handle(
+        IPC_CHANNELS.GET_SKILL_PROMPT,
+        (_event, skillName: string, skillId: string, description: string, clipboard: boolean) => {
+            if (clipboard) {
+                return buildSkillClipboardPrompt(skillName, skillId, description);
+            }
+            return buildSkillLoadPrompt(skillName, skillId, description);
+        },
+    );
 }
 
 // --- LSP IPC Handlers ---
 
+/**
+ *
+ */
 function registerLspHandlers(): void {
     ipcMain.handle(IPC_CHANNELS.GET_LSP_STATUS, () => getLspStatus());
-    ipcMain.handle(IPC_CHANNELS.RESTART_LSP, () => restartLsp());
+    ipcMain.handle(IPC_CHANNELS.RESTART_LSP, () => {
+        restartLsp();
+    });
     ipcMain.handle(IPC_CHANNELS.GET_SERVICE_STATUS, () => ({
         mcp: { ...getMcpStatus(), transport: loadSettings().mcpTransport },
         lsp: getLspStatus(),
@@ -394,6 +567,9 @@ function registerLspHandlers(): void {
 
 // --- Settings IPC Handlers ---
 
+/**
+ *
+ */
 function registerSettingsHandlers(): void {
     ipcMain.handle(IPC_CHANNELS.GET_SETTINGS, (): NavitaSettings => loadSettings());
     ipcMain.handle(IPC_CHANNELS.SAVE_SETTINGS, (_event, settings: NavitaSettings): void => {
@@ -405,6 +581,9 @@ function registerSettingsHandlers(): void {
 
 const PROJECTS_FILE = path.join(os.homedir(), '.config', 'ansible-navita', 'projects.json');
 
+/**
+ *
+ */
 function loadProjects(): ProjectEntry[] {
     try {
         return JSON.parse(fs.readFileSync(PROJECTS_FILE, 'utf-8')) as ProjectEntry[];
@@ -413,22 +592,36 @@ function loadProjects(): ProjectEntry[] {
     }
 }
 
+/**
+ *
+ * @param projects
+ */
 function saveProjects(projects: ProjectEntry[]): void {
     const dir = path.dirname(PROJECTS_FILE);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(PROJECTS_FILE, JSON.stringify(projects, null, 2));
 }
 
+/**
+ *
+ */
 function registerProjectHandlers(): void {
     ipcMain.handle(IPC_CHANNELS.GET_RECENT_PROJECTS, (): ProjectEntry[] => {
         return loadProjects().sort((a, b) => b.lastOpened - a.lastOpened);
     });
 
     ipcMain.handle(IPC_CHANNELS.ADD_PROJECT, async (): Promise<ProjectEntry | null> => {
-        const result = await dialog.showOpenDialog({ properties: ['openDirectory'], title: 'Open Ansible Project' });
+        const result = await dialog.showOpenDialog({
+            properties: ['openDirectory'],
+            title: 'Open Ansible Project',
+        });
         if (result.canceled || result.filePaths.length === 0) return null;
         const projectPath = result.filePaths[0];
-        const entry: ProjectEntry = { path: projectPath, name: path.basename(projectPath), lastOpened: Date.now() };
+        const entry: ProjectEntry = {
+            path: projectPath,
+            name: path.basename(projectPath),
+            lastOpened: Date.now(),
+        };
         const projects = loadProjects().filter((p) => p.path !== projectPath);
         projects.unshift(entry);
         saveProjects(projects);
@@ -437,61 +630,119 @@ function registerProjectHandlers(): void {
         return entry;
     });
 
-    ipcMain.handle(IPC_CHANNELS.SWITCH_PROJECT, async (_event, projectPath: string): Promise<void> => {
-        const projects = loadProjects();
-        const idx = projects.findIndex((p) => p.path === projectPath);
-        if (idx >= 0) { projects[idx].lastOpened = Date.now(); }
-        else { projects.unshift({ path: projectPath, name: path.basename(projectPath), lastOpened: Date.now() }); }
-        saveProjects(projects);
-        process.env.ANSIBLE_ENV_WORKSPACE = projectPath;
-        await initializeServices();
-    });
+    ipcMain.handle(
+        IPC_CHANNELS.SWITCH_PROJECT,
+        async (_event, projectPath: string): Promise<void> => {
+            const projects = loadProjects();
+            const idx = projects.findIndex((p) => p.path === projectPath);
+            if (idx >= 0) {
+                projects[idx].lastOpened = Date.now();
+            } else {
+                projects.unshift({
+                    path: projectPath,
+                    name: path.basename(projectPath),
+                    lastOpened: Date.now(),
+                });
+            }
+            saveProjects(projects);
+            process.env.ANSIBLE_ENV_WORKSPACE = projectPath;
+            await initializeServices();
+        },
+    );
 
     ipcMain.handle(IPC_CHANNELS.REMOVE_PROJECT, (_event, projectPath: string): void => {
         saveProjects(loadProjects().filter((p) => p.path !== projectPath));
     });
 
-    ipcMain.handle(IPC_CHANNELS.GET_WORKSPACE, (): string | null => getCommandService().getWorkspaceRoot());
+    ipcMain.handle(IPC_CHANNELS.GET_WORKSPACE, (): string | null =>
+        getCommandService().getWorkspaceRoot(),
+    );
 }
 
 // --- Window Control IPC Handlers ---
 
+/**
+ *
+ */
 function registerWindowHandlers(): void {
-    ipcMain.handle(IPC_CHANNELS.WINDOW_MINIMIZE, () => { mainWindowRef?.minimize(); });
+    ipcMain.handle(IPC_CHANNELS.WINDOW_MINIMIZE, () => {
+        mainWindowRef?.minimize();
+    });
     ipcMain.handle(IPC_CHANNELS.WINDOW_MAXIMIZE, () => {
         if (mainWindowRef?.isMaximized()) mainWindowRef.unmaximize();
         else mainWindowRef?.maximize();
     });
-    ipcMain.handle(IPC_CHANNELS.WINDOW_CLOSE, () => { mainWindowRef?.close(); });
-    ipcMain.handle(IPC_CHANNELS.WINDOW_IS_MAXIMIZED, (): boolean => mainWindowRef?.isMaximized() ?? false);
+    ipcMain.handle(IPC_CHANNELS.WINDOW_CLOSE, () => {
+        mainWindowRef?.close();
+    });
+    ipcMain.handle(
+        IPC_CHANNELS.WINDOW_IS_MAXIMIZED,
+        (): boolean => mainWindowRef?.isMaximized() ?? false,
+    );
 }
 
 // --- Helpers ---
 
+/**
+ *
+ * @param dir
+ * @param rootDir
+ * @param results
+ */
 async function findPlaybooks(dir: string, rootDir: string, results: PlaybookInfo[]): Promise<void> {
     const skipDirs = new Set(['node_modules', '.git', '.venv', '__pycache__', '.tox', 'roles']);
     let entries: fs.Dirent[];
-    try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return; }
+    try {
+        entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    } catch {
+        return;
+    }
     for (const entry of entries) {
         const fullPath = path.join(dir, entry.name);
         if (entry.isDirectory()) {
             if (!skipDirs.has(entry.name)) await findPlaybooks(fullPath, rootDir, results);
-        } else if (entry.isFile() && /\.(yml|yaml)$/.test(entry.name) && isLikelyPlaybook(entry.name)) {
-            results.push({ path: fullPath, name: entry.name, relativePath: path.relative(rootDir, fullPath) });
+        } else if (
+            entry.isFile() &&
+            /\.(yml|yaml)$/.test(entry.name) &&
+            isLikelyPlaybook(entry.name)
+        ) {
+            results.push({
+                path: fullPath,
+                name: entry.name,
+                relativePath: path.relative(rootDir, fullPath),
+            });
         }
     }
 }
 
+/**
+ *
+ * @param filename
+ */
 function isLikelyPlaybook(filename: string): boolean {
-    return [/^site\./, /^main\./, /playbook/i, /^deploy/i, /^provision/i, /^setup/i, /^install/i, /^configure/i].some((p) => p.test(filename));
+    return [
+        /^site\./,
+        /^main\./,
+        /playbook/i,
+        /^deploy/i,
+        /^provision/i,
+        /^setup/i,
+        /^install/i,
+        /^configure/i,
+    ].some((p) => p.test(filename));
 }
 
+/**
+ *
+ */
 function findCallbackPluginsPath(): string {
     const candidates = [
         path.join(__dirname, '..', '..', '..', '..', 'resources', 'callback_plugins'),
         path.join(__dirname, '..', 'resources', 'callback_plugins'),
         path.join(process.cwd(), 'resources', 'callback_plugins'),
     ];
-    for (const c of candidates) { if (fs.existsSync(c)) return c; }
+    for (const c of candidates) {
+        if (fs.existsSync(c)) return c;
+    }
     return candidates[0];
 }

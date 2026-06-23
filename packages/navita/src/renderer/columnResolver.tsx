@@ -18,6 +18,7 @@ import { EEList, EEFacets, EEFacetDetail } from './views/ExecutionEnvironments';
 import { CreatorCommandList, CreatorCommandForm } from './views/CreatorForm';
 import { PlaybookList, PlaybookDetail } from './views/PlaybookExecution';
 import { McpToolList, McpToolDetail } from './views/McpToolsView';
+import { SkillList, SkillDetail } from './views/SkillsView';
 
 interface ResolverContext {
     select: (depth: number, columnType: string, selectedId: string) => void;
@@ -44,6 +45,7 @@ const FACET_LABELS: Record<string, string> = {
     creator: 'Creator',
     playbooks: 'Playbooks',
     'ai-tools': 'AI Tools',
+    skills: 'AI Skills',
 };
 
 const SETTINGS_LABELS: Record<string, string> = {
@@ -223,6 +225,9 @@ export function resolveColumns(ctx: ResolverContext): ColumnDef[] {
         case 'ai-tools':
             columns.push(nav(<McpToolList key="mcp-list" selected={col3Selected} onSelect={col3Select} />, itemLabel));
             break;
+        case 'skills':
+            columns.push(nav(<SkillList key="skill-list" selected={col3Selected} onSelect={col3Select} />, itemLabel));
+            break;
         default:
             columns.push(nav(<EmptyColumn key="unknown-facet" />));
     }
@@ -264,6 +269,9 @@ export function resolveColumns(ctx: ResolverContext): ColumnDef[] {
             return columns;
         case 'ai-tools':
             columns.push(content(<McpToolDetail key={`mcp-${detailId}`} toolName={detailId} />));
+            return columns;
+        case 'skills':
+            columns.push(content(<SkillDetail key={`skill-${detailId}`} skillId={detailId} />));
             return columns;
         default:
             columns.push(content(<EmptyColumn key="unknown-detail" />));

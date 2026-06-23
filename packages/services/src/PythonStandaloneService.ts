@@ -23,7 +23,7 @@ import * as path from 'path';
 import * as cp from 'child_process';
 import { promisify } from 'util';
 import { cacheSelectedEnvironment } from './EnvironmentCache';
-import { log } from '../utils/logging';
+import { log } from '@ansible/common';
 
 const execAsync = promisify(cp.exec);
 const VERSION_TIMEOUT_MS = 2000;

@@ -75,9 +75,9 @@ export interface EEDetailInfo {
     ansibleVersion: string | null;
     osRelease: string | null;
     imageName: string | null;
-    collections: Array<{ name: string; version: string }>;
-    pythonPackages: Array<{ name: string; version: string; summary?: string }>;
-    systemPackages: Array<{ name: string; version: string }>;
+    collections: { name: string; version: string }[];
+    pythonPackages: { name: string; version: string; summary?: string }[];
+    systemPackages: { name: string; version: string }[];
 }
 
 export interface CreatorCommand {
@@ -100,6 +100,26 @@ export interface McpToolInfo {
     name: string;
     description: string;
     inputSchema?: Record<string, unknown>;
+}
+
+export interface SkillInfo {
+    id: string;
+    source: string;
+    module: string;
+    name: string;
+    description: string;
+    category: string;
+    trust: string;
+    triggers: string[];
+    tags: string[];
+    domain?: string;
+}
+
+export interface SkillSourceInfo {
+    id: string;
+    type: string;
+    url: string;
+    trust: string;
 }
 
 export type ColorScheme = 'light' | 'dark' | 'auto';
@@ -217,6 +237,13 @@ export const IPC_CHANNELS = {
     // Creator
     GET_CREATOR_COMMANDS: 'navita:get-creator-commands',
     RUN_CREATOR_COMMAND: 'navita:run-creator-command',
+
+    // Skills
+    GET_SKILLS: 'navita:get-skills',
+    GET_SKILL_SOURCES: 'navita:get-skill-sources',
+    REFRESH_SKILLS: 'navita:refresh-skills',
+    GET_SKILL_CONTENT: 'navita:get-skill-content',
+    GET_SKILL_PROMPT: 'navita:get-skill-prompt',
 
     // MCP
     GET_MCP_TOOLS: 'navita:get-mcp-tools',

@@ -21,12 +21,17 @@ import type {
     AbbenayModelInfo,
     ChatChunkData,
     SessionInfo,
+    SkillInfo,
+    SkillSourceInfo,
 } from '../shared/types';
 
 export interface NavitaAPI {
     // Collections
-    getCollections(): Promise<Array<{ name: string; version: string; path: string }>>;
-    getPlugins(collection: string, pluginType: string): Promise<Array<{ name: string; description?: string }>>;
+    getCollections(): Promise<{ name: string; version: string; path: string }[]>;
+    getPlugins(
+        collection: string,
+        pluginType: string,
+    ): Promise<{ name: string; description?: string }[]>;
     getPluginDoc(pluginName: string, pluginType: string): Promise<Record<string, unknown> | null>;
     searchPlugins(query: string): Promise<SearchResult[]>;
     refreshCollections(): Promise<void>;
@@ -45,7 +50,7 @@ export interface NavitaAPI {
 
     // Environment
     getEnvironmentInfo(): Promise<EnvironmentInfo>;
-    getDevToolsPackages(): Promise<Array<{ name: string; version: string }>>;
+    getDevToolsPackages(): Promise<{ name: string; version: string }[]>;
     discoverEnvironments(): Promise<DiscoveredEnv[]>;
     selectEnvironment(env: DiscoveredEnv): Promise<void>;
 
@@ -56,6 +61,18 @@ export interface NavitaAPI {
     // Creator
     getCreatorCommands(): Promise<CreatorCommand[]>;
     runCreatorCommand(commandName: string, params: Record<string, string>): Promise<string>;
+
+    // Skills
+    getSkills(): Promise<SkillInfo[]>;
+    getSkillSources(): Promise<SkillSourceInfo[]>;
+    refreshSkills(): Promise<void>;
+    getSkillContent(skillId: string): Promise<string | undefined>;
+    getSkillPrompt(
+        skillName: string,
+        skillId: string,
+        description: string,
+        clipboard: boolean,
+    ): Promise<string>;
 
     // MCP
     getMcpTools(): Promise<McpToolInfo[]>;
@@ -93,8 +110,15 @@ export interface NavitaAPI {
     abbenayDisconnect(): Promise<{ ok: boolean }>;
     abbenayStatus(): Promise<AbbenayStatus>;
     abbenayListModels(): Promise<AbbenayModelInfo[]>;
-    abbenayChat(messages: Array<{ role: string; content: string }>, model?: string): Promise<{ requestId: string; error?: string }>;
-    abbenaySessionChat(sessionId: string, messages: Array<{ role: string; content: string }>, model?: string): Promise<{ requestId: string; error?: string }>;
+    abbenayChat(
+        messages: { role: string; content: string }[],
+        model?: string,
+    ): Promise<{ requestId: string; error?: string }>;
+    abbenaySessionChat(
+        sessionId: string,
+        messages: { role: string; content: string }[],
+        model?: string,
+    ): Promise<{ requestId: string; error?: string }>;
     abbenayCreateSession(model: string, topic?: string): Promise<SessionInfo>;
     abbenayListSessions(): Promise<SessionInfo[]>;
     abbenayDeleteSession(sessionId: string): Promise<{ ok: boolean }>;
@@ -105,29 +129,42 @@ export interface NavitaAPI {
 const navitaAPI: NavitaAPI = {
     // Collections
     getCollections: () => ipcRenderer.invoke(IPC_CHANNELS.GET_COLLECTIONS),
-    getPlugins: (collection, pluginType) => ipcRenderer.invoke(IPC_CHANNELS.GET_PLUGINS, collection, pluginType),
-    getPluginDoc: (pluginName, pluginType) => ipcRenderer.invoke(IPC_CHANNELS.GET_PLUGIN_DOC, pluginName, pluginType),
+    getPlugins: (collection, pluginType) =>
+        ipcRenderer.invoke(IPC_CHANNELS.GET_PLUGINS, collection, pluginType),
+    getPluginDoc: (pluginName, pluginType) =>
+        ipcRenderer.invoke(IPC_CHANNELS.GET_PLUGIN_DOC, pluginName, pluginType),
     searchPlugins: (query) => ipcRenderer.invoke(IPC_CHANNELS.SEARCH_PLUGINS, query),
     refreshCollections: () => ipcRenderer.invoke(IPC_CHANNELS.REFRESH_COLLECTIONS),
 
     // Collection sources
-    searchGalaxyCollections: (query) => ipcRenderer.invoke(IPC_CHANNELS.SEARCH_GALAXY_COLLECTIONS, query),
-    searchGitHubCollections: (query) => ipcRenderer.invoke(IPC_CHANNELS.SEARCH_GITHUB_COLLECTIONS, query),
+    searchGalaxyCollections: (query) =>
+        ipcRenderer.invoke(IPC_CHANNELS.SEARCH_GALAXY_COLLECTIONS, query),
+    searchGitHubCollections: (query) =>
+        ipcRenderer.invoke(IPC_CHANNELS.SEARCH_GITHUB_COLLECTIONS, query),
     installCollection: (name) => ipcRenderer.invoke(IPC_CHANNELS.INSTALL_COLLECTION, name),
 
     // Playbook execution
     getPlaybooks: () => ipcRenderer.invoke(IPC_CHANNELS.GET_PLAYBOOKS),
-    runPlaybook: (playbookPath, config) => ipcRenderer.invoke(IPC_CHANNELS.RUN_PLAYBOOK, playbookPath, config),
+    runPlaybook: (playbookPath, config) =>
+        ipcRenderer.invoke(IPC_CHANNELS.RUN_PLAYBOOK, playbookPath, config),
     stopPlaybook: () => ipcRenderer.invoke(IPC_CHANNELS.STOP_PLAYBOOK),
     onPlaybookEvent: (callback) => {
-        const listener = (_event: Electron.IpcRendererEvent, data: ProgressEvent) => callback(data);
+        const listener = (_event: Electron.IpcRendererEvent, data: ProgressEvent) => {
+            callback(data);
+        };
         ipcRenderer.on(IPC_CHANNELS.PLAYBOOK_EVENT, listener);
-        return () => { ipcRenderer.removeListener(IPC_CHANNELS.PLAYBOOK_EVENT, listener); };
+        return () => {
+            ipcRenderer.removeListener(IPC_CHANNELS.PLAYBOOK_EVENT, listener);
+        };
     },
     onPlaybookComplete: (callback) => {
-        const listener = () => callback();
+        const listener = () => {
+            callback();
+        };
         ipcRenderer.on(IPC_CHANNELS.PLAYBOOK_COMPLETE, listener);
-        return () => { ipcRenderer.removeListener(IPC_CHANNELS.PLAYBOOK_COMPLETE, listener); };
+        return () => {
+            ipcRenderer.removeListener(IPC_CHANNELS.PLAYBOOK_COMPLETE, listener);
+        };
     },
 
     // Environment
@@ -142,14 +179,30 @@ const navitaAPI: NavitaAPI = {
 
     // Creator
     getCreatorCommands: () => ipcRenderer.invoke(IPC_CHANNELS.GET_CREATOR_COMMANDS),
-    runCreatorCommand: (commandName, params) => ipcRenderer.invoke(IPC_CHANNELS.RUN_CREATOR_COMMAND, commandName, params),
+    runCreatorCommand: (commandName, params) =>
+        ipcRenderer.invoke(IPC_CHANNELS.RUN_CREATOR_COMMAND, commandName, params),
+
+    // Skills
+    getSkills: () => ipcRenderer.invoke(IPC_CHANNELS.GET_SKILLS),
+    getSkillSources: () => ipcRenderer.invoke(IPC_CHANNELS.GET_SKILL_SOURCES),
+    refreshSkills: () => ipcRenderer.invoke(IPC_CHANNELS.REFRESH_SKILLS),
+    getSkillContent: (skillId) => ipcRenderer.invoke(IPC_CHANNELS.GET_SKILL_CONTENT, skillId),
+    getSkillPrompt: (skillName, skillId, description, clipboard) =>
+        ipcRenderer.invoke(
+            IPC_CHANNELS.GET_SKILL_PROMPT,
+            skillName,
+            skillId,
+            description,
+            clipboard,
+        ),
 
     // MCP
     getMcpTools: () => ipcRenderer.invoke(IPC_CHANNELS.GET_MCP_TOOLS),
     callMcpTool: (toolName, args) => ipcRenderer.invoke(IPC_CHANNELS.CALL_MCP_TOOL, toolName, args),
     getMcpStatus: () => ipcRenderer.invoke(IPC_CHANNELS.GET_MCP_STATUS),
     restartMcp: () => ipcRenderer.invoke(IPC_CHANNELS.RESTART_MCP),
-    getMcpConfigSnippet: (format) => ipcRenderer.invoke(IPC_CHANNELS.GET_MCP_CONFIG_SNIPPET, format),
+    getMcpConfigSnippet: (format) =>
+        ipcRenderer.invoke(IPC_CHANNELS.GET_MCP_CONFIG_SNIPPET, format),
 
     // LSP
     getLspStatus: () => ipcRenderer.invoke(IPC_CHANNELS.GET_LSP_STATUS),
@@ -180,16 +233,24 @@ const navitaAPI: NavitaAPI = {
     abbenayDisconnect: () => ipcRenderer.invoke(IPC_CHANNELS.ABBENAY_DISCONNECT),
     abbenayStatus: () => ipcRenderer.invoke(IPC_CHANNELS.ABBENAY_STATUS),
     abbenayListModels: () => ipcRenderer.invoke(IPC_CHANNELS.ABBENAY_LIST_MODELS),
-    abbenayChat: (messages, model) => ipcRenderer.invoke(IPC_CHANNELS.ABBENAY_CHAT, messages, model),
-    abbenaySessionChat: (sessionId, messages, model) => ipcRenderer.invoke(IPC_CHANNELS.ABBENAY_SESSION_CHAT, sessionId, messages, model),
-    abbenayCreateSession: (model, topic) => ipcRenderer.invoke(IPC_CHANNELS.ABBENAY_CREATE_SESSION, model, topic),
+    abbenayChat: (messages, model) =>
+        ipcRenderer.invoke(IPC_CHANNELS.ABBENAY_CHAT, messages, model),
+    abbenaySessionChat: (sessionId, messages, model) =>
+        ipcRenderer.invoke(IPC_CHANNELS.ABBENAY_SESSION_CHAT, sessionId, messages, model),
+    abbenayCreateSession: (model, topic) =>
+        ipcRenderer.invoke(IPC_CHANNELS.ABBENAY_CREATE_SESSION, model, topic),
     abbenayListSessions: () => ipcRenderer.invoke(IPC_CHANNELS.ABBENAY_LIST_SESSIONS),
-    abbenayDeleteSession: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.ABBENAY_DELETE_SESSION, sessionId),
+    abbenayDeleteSession: (sessionId) =>
+        ipcRenderer.invoke(IPC_CHANNELS.ABBENAY_DELETE_SESSION, sessionId),
     abbenayOpenWebUI: () => ipcRenderer.invoke(IPC_CHANNELS.ABBENAY_START_WEB_UI),
     onChatChunk: (callback) => {
-        const listener = (_event: Electron.IpcRendererEvent, data: ChatChunkData) => callback(data);
+        const listener = (_event: Electron.IpcRendererEvent, data: ChatChunkData) => {
+            callback(data);
+        };
         ipcRenderer.on(IPC_CHANNELS.ABBENAY_CHAT_CHUNK, listener);
-        return () => { ipcRenderer.removeListener(IPC_CHANNELS.ABBENAY_CHAT_CHUNK, listener); };
+        return () => {
+            ipcRenderer.removeListener(IPC_CHANNELS.ABBENAY_CHAT_CHUNK, listener);
+        };
     },
 };
 
