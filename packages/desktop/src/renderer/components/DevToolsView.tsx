@@ -45,14 +45,16 @@ export function DevToolsView(): JSX.Element {
                         : 'No Ansible developer tools found on PATH.'}
                 </p>
             ) : (
-                <ul className="package-list">
+                <ul className="item-list">
                     {result.packages.map((entry) => (
-                        <li key={entry.name}>
-                            <span className="package-name">{entry.name}</span>
-                            <span className="muted">{entry.version}</span>
-                            {entry.location !== undefined && (
-                                <span className="chip-path">{entry.location}</span>
-                            )}
+                        <li key={entry.name} className="item-row">
+                            <div className="item-main">
+                                <span className="item-title">{entry.name}</span>
+                                {entry.location !== undefined && (
+                                    <span className="item-description">{entry.location}</span>
+                                )}
+                            </div>
+                            <span className="item-tag">{entry.version}</span>
                         </li>
                     ))}
                 </ul>

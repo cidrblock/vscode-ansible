@@ -52,12 +52,18 @@ export function EnvironmentsView(props: { workspacePath: string | null }): JSX.E
                 result.groups.map((group) => (
                     <div key={group.id} className="env-group">
                         <h3>{group.label}</h3>
-                        <ul className="package-list">
+                        <ul className="item-list">
                             {group.environments.map((environment) => (
-                                <li key={environment.pythonPath}>
-                                    <span className="package-name">{environment.name}</span>
-                                    <span className="muted">{environment.version ?? ''}</span>
-                                    <span className="chip-path">{environment.pythonPath}</span>
+                                <li key={environment.pythonPath} className="item-row">
+                                    <div className="item-main">
+                                        <span className="item-title">{environment.name}</span>
+                                        <span className="item-description">
+                                            {environment.pythonPath}
+                                        </span>
+                                    </div>
+                                    {environment.version !== undefined && (
+                                        <span className="item-tag">{environment.version}</span>
+                                    )}
                                     {environment.active && (
                                         <span className="pill pill-ready">active</span>
                                     )}
