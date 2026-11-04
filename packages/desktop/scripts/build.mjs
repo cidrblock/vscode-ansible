@@ -36,7 +36,7 @@ const targets = [
     {
         entryPoints: [path.join(PKG, 'src', 'main', 'index.ts')],
         outfile: path.join(DIST, 'main', 'index.js'),
-        external: ['electron'],
+        external: ['electron', 'vscode'],
     },
     {
         entryPoints: [path.join(PKG, 'src', 'preload', 'index.ts')],

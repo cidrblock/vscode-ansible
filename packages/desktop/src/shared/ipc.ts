@@ -16,6 +16,7 @@ export const IPC = {
     rescanWorkspace: 'navita:rescan-workspace',
     copySnippet: 'navita:copy-snippet',
     testConnection: 'navita:test-connection',
+    getDevTools: 'navita:get-dev-tools',
 } as const;
 
 /** Sidebar sections, in the order they are ported from the extension views. */
@@ -43,7 +44,7 @@ export const SECTIONS: readonly Section[] = [
         id: 'dev-tools',
         label: 'Ansible Dev Tools',
         sourceView: 'ansibleDevToolsPackages',
-        status: 'placeholder',
+        status: 'ready',
     },
     {
         id: 'env-managers',
@@ -144,6 +145,18 @@ export type MenuAction =
     | { readonly id: 'devtools' }
     | { readonly id: 'quit' };
 
+export interface DevToolEntry {
+    readonly name: string;
+    readonly version: string;
+    readonly location?: string;
+}
+
+export interface DevToolsResult {
+    readonly state: 'ready' | 'error';
+    readonly packages: readonly DevToolEntry[];
+    readonly detail?: string;
+}
+
 /** Surface exposed to the renderer through the preload bridge. */
 export interface NavitaBridge {
     getState(): Promise<AppState>;
@@ -154,6 +167,7 @@ export interface NavitaBridge {
     rescanWorkspace(): Promise<AppState>;
     copySnippet(harness: HarnessId): Promise<string>;
     testConnection(): Promise<AppState>;
+    getDevTools(): Promise<DevToolsResult>;
     onStateChanged(listener: (state: AppState) => void): () => void;
     onToggleSidebar(listener: () => void): () => void;
 }

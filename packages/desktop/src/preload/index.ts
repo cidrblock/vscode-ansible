@@ -10,6 +10,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import {
     IPC,
     type AppState,
+    type DevToolsResult,
     type HarnessId,
     type NavitaBridge,
     type SectionId,
@@ -27,6 +28,7 @@ const bridge: NavitaBridge = {
     copySnippet: (harness: HarnessId) =>
         ipcRenderer.invoke(IPC.copySnippet, harness) as Promise<string>,
     testConnection: () => ipcRenderer.invoke(IPC.testConnection) as Promise<AppState>,
+    getDevTools: () => ipcRenderer.invoke(IPC.getDevTools) as Promise<DevToolsResult>,
     onStateChanged: (listener: (state: AppState) => void) => {
         const handler = (_event: IpcRendererEvent, state: AppState): void => {
             listener(state);

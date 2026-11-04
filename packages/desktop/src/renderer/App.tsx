@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type JSX } from 'react';
 
 import { HARNESSES, SECTIONS, type AppState, type HarnessId, type SectionId } from '../shared/ipc';
+import { DevToolsView } from './components/DevToolsView';
 import { Sidebar } from './components/Sidebar';
 import { Welcome } from './components/Welcome';
 
@@ -145,6 +146,8 @@ export function App(): JSX.Element {
                         <main className="pane">
                             <h1>{state.workspace.name}</h1>
                             <p className="muted">{state.workspace.path}</p>
+
+                            {state.activeSection === 'dev-tools' && <DevToolsView />}
 
                             <section className="card">
                                 <h2>Servers</h2>

@@ -6,6 +6,7 @@
  */
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -14,6 +15,8 @@ const DIST = path.resolve(here, '..', 'dist');
 const MCP = path.join(DIST, 'servers', 'mcp-server.js');
 const LSP = path.join(DIST, 'servers', 'language-server.js');
 const WORKSPACE = process.cwd();
+const PKG = path.resolve(here, '..');
+const REPO = path.resolve(PKG, '..', '..');
 
 function fail(message) {
     console.error(`FAIL ${message}`);
@@ -116,6 +119,42 @@ function probeLsp() {
     });
 }
 
+
+/**
+ * Bundle the Dev Tools view module for Node and report what it discovers.
+ * Bundling keeps the check honest: it exercises the same code the main
+ * process runs, without needing an Electron display.
+ * @returns Package count and state.
+ */
+async function probeDevTools() {
+    const esbuild = await import('esbuild');
+    const outfile = path.join(DIST, 'verify', 'devtools.cjs');
+    fs.mkdirSync(path.dirname(outfile), { recursive: true });
+    await esbuild.build({
+        entryPoints: [path.join(PKG, 'src', 'main', 'devtools.ts')],
+        outfile,
+        bundle: true,
+        platform: 'node',
+        format: 'cjs',
+        logLevel: 'silent',
+        external: ['vscode'],
+        alias: {
+            '@ansible/common': path.join(REPO, 'packages', 'common', 'src', 'index.ts'),
+            '@ansible/developer-services': path.join(
+                REPO,
+                'packages',
+                'services',
+                'src',
+                'index.ts',
+            ),
+        },
+    });
+    const require = createRequire(import.meta.url);
+    const { loadDevTools } = require(outfile);
+    const result = await loadDevTools();
+    return result;
+}
+
 for (const script of [MCP, LSP]) {
     if (!fs.existsSync(script)) {
         fail(`missing build artifact ${path.relative(DIST, script)} — run pnpm build first`);
@@ -127,4 +166,14 @@ if (process.exitCode !== 1) {
     console.log(`PASS  mcp-server      ${tools.length} tools (${tools.slice(0, 3).join(', ')}…)`);
     const capabilities = Object.keys(lsp.capabilities ?? {});
     console.log(`PASS  language-server capabilities: ${capabilities.join(', ') || '(none)'}`);
+
+    const devTools = await probeDevTools();
+    if (devTools.state === 'error') {
+        fail(`dev-tools discovery: ${devTools.detail}`);
+    } else if (devTools.packages.length === 0) {
+        console.log('SKIP  dev-tools        no ansible-dev-tools on PATH');
+    } else {
+        const names = devTools.packages.slice(0, 3).map((entry) => entry.name);
+        console.log(`PASS  dev-tools        ${devTools.packages.length} packages (${names.join(', ')}…)`);
+    }
 }
