@@ -178,6 +178,7 @@ export default defineConfig(
         ignores: [
             'scripts/**',
             'tools/**',
+            'packages/desktop/scripts/**',
             'src/panels/webview-entry.tsx',
             'src/panels/bridges/**',
             'src/panels/webview.d.ts',

@@ -62,6 +62,7 @@ export default defineConfig({
             project('ls', 'packages/language-server', ['test/**/*.test.ts']),
             project('ui', 'packages/ui', ['test/**/*.test.ts']),
             project('lightspeed', 'packages/lightspeed', ['test/**/*.test.ts']),
+            project('desktop', 'packages/desktop', ['test/**/*.test.ts']),
             {
                 resolve: {
                     alias: {

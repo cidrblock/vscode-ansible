@@ -1,0 +1,31 @@
+{
+  "name": "@ansible/desktop",
+  "version": "0.0.1",
+  "description": "navita \u2014 desktop companion that ships the Ansible MCP server, language server and skills",
+  "private": true,
+  "license": "MIT",
+  "main": "dist/main/index.js",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "start": "electron dist/main/index.js",
+    "verify": "node scripts/verify.mjs",
+    "typecheck": "tsc -b --pretty false && tsc -p src/renderer/tsconfig.json --pretty false && tsc -p test/tsconfig.json --pretty false"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "electron": "45.2.2",
+    "esbuild": "^0.28.1",
+    "typescript": "^6.0.3",
+    "vite": "^6.4.3"
+  }
+}
