@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type JSX } from 'react';
 
 import type { SkillsResult } from '../../shared/ipc';
+import { CopyButton } from './CopyButton';
 
 /**
  * AI Skills section: skills found by the registry the MCP server shares, with
@@ -31,17 +32,6 @@ export function SkillsView(props: { onCopied: (label: string) => void }): JSX.El
         load();
     }, [load]);
 
-    const copy = (prompt: string, name: string): void => {
-        window.navita
-            .copyText(prompt)
-            .then(() => {
-                onCopied(name);
-            })
-            .catch(() => {
-                onCopied(`could not copy ${name}`);
-            });
-    };
-
     const total = result?.groups.reduce((count, group) => count + group.skills.length, 0) ?? 0;
 
     return (
@@ -63,19 +53,21 @@ export function SkillsView(props: { onCopied: (label: string) => void }): JSX.El
                 result.groups.map((group) => (
                     <div key={group.id} className="env-group">
                         <h3>{group.label}</h3>
-                        <ul className="package-list">
+                        <ul className="item-list">
                             {group.skills.map((skill) => (
-                                <li key={skill.id}>
-                                    <span className="package-name">{skill.name}</span>
-                                    <span className="muted">{skill.module}</span>
-                                    <button
-                                        className="ghost"
-                                        onClick={() => {
-                                            copy(skill.prompt, skill.name);
-                                        }}
-                                    >
-                                        Copy prompt
-                                    </button>
+                                <li key={skill.id} className="item-row">
+                                    <div className="item-main">
+                                        <span className="item-title">{skill.name}</span>
+                                        <span className="item-description">
+                                            {skill.description}
+                                        </span>
+                                    </div>
+                                    <span className="item-tag">{skill.module}</span>
+                                    <CopyButton
+                                        label={skill.name}
+                                        prompt={skill.prompt}
+                                        onCopied={onCopied}
+                                    />
                                 </li>
                             ))}
                         </ul>

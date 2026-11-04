@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type JSX } from 'react';
 
 import type { ToolsResult } from '../../shared/ipc';
+import { CopyButton } from './CopyButton';
 
 /**
  * AI Tools section: the catalog the bundled MCP server advertises, grouped by
@@ -32,17 +33,6 @@ export function ToolsView(props: { onCopied: (label: string) => void }): JSX.Ele
         load();
     }, [load]);
 
-    const copy = (prompt: string, name: string): void => {
-        window.navita
-            .copyText(prompt)
-            .then(() => {
-                onCopied(name);
-            })
-            .catch(() => {
-                onCopied(`could not copy ${name}`);
-            });
-    };
-
     return (
         <section className="card">
             <div className="card-header">
@@ -60,19 +50,22 @@ export function ToolsView(props: { onCopied: (label: string) => void }): JSX.Ele
                 result.groups.map((group) => (
                     <div key={group.id} className="env-group">
                         <h3>{group.label}</h3>
-                        <ul className="package-list">
+                        <ul className="item-list">
                             {group.tools.map((tool) => (
-                                <li key={tool.name}>
-                                    <span className="package-name">{tool.name}</span>
-                                    <span className="muted">{tool.description ?? ''}</span>
-                                    <button
-                                        className="ghost"
-                                        onClick={() => {
-                                            copy(tool.prompt, tool.name);
-                                        }}
-                                    >
-                                        Copy prompt
-                                    </button>
+                                <li key={tool.name} className="item-row">
+                                    <div className="item-main">
+                                        <span className="item-title">{tool.name}</span>
+                                        {tool.description !== undefined && (
+                                            <span className="item-description">
+                                                {tool.description}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <CopyButton
+                                        label={tool.name}
+                                        prompt={tool.prompt}
+                                        onCopied={onCopied}
+                                    />
                                 </li>
                             ))}
                         </ul>
