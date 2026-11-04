@@ -175,6 +175,35 @@ if (process.exitCode !== 1) {
         console.log(`PASS  dev-tools        ${devTools.packages.length} packages (${names.join(', ')}…)`);
     }
 
+    const toolsModule = await bundleModule('tools.ts', 'tools');
+    const toolCatalog = await toolsModule.loadTools(
+        {
+            command: process.execPath,
+            args: [MCP],
+            env: { ...process.env, ANSIBLE_ENV_WORKSPACE: WORKSPACE },
+        },
+        WORKSPACE,
+    );
+    if (toolCatalog.state === 'error') {
+        fail(`tool catalog: ${toolCatalog.detail}`);
+    } else {
+        const labels = toolCatalog.groups.map((group) => group.label);
+        console.log(
+            `PASS  ai-tools         ${toolCatalog.toolCount} tools in ${labels.join(', ')}`,
+        );
+    }
+
+    const skillsModule = await bundleModule('skills.ts', 'skills');
+    const skillCatalog = await skillsModule.loadSkills(path.join(DIST, 'skills'));
+    if (skillCatalog.state === 'error') {
+        fail(`skills: ${skillCatalog.detail}`);
+    } else {
+        const count = skillCatalog.groups.reduce((total, group) => total + group.skills.length, 0);
+        console.log(
+            `PASS  ai-skills        ${count} skills in ${skillCatalog.groups.length} source(s)`,
+        );
+    }
+
     const environmentsModule = await bundleModule('environments.ts', 'environments');
     const environments = await environmentsModule.loadEnvironments(WORKSPACE);
     if (environments.state === 'error') {

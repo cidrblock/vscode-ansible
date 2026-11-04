@@ -18,6 +18,9 @@ export const IPC = {
     testConnection: 'navita:test-connection',
     getDevTools: 'navita:get-dev-tools',
     getEnvironments: 'navita:get-environments',
+    getTools: 'navita:get-tools',
+    getSkills: 'navita:get-skills',
+    copyText: 'navita:copy-text',
 } as const;
 
 /** Sidebar sections, in the order they are ported from the extension views. */
@@ -57,13 +60,13 @@ export const SECTIONS: readonly Section[] = [
         id: 'ai-tools',
         label: 'AI Tools',
         sourceView: 'ansibleMcpTools',
-        status: 'placeholder',
+        status: 'ready',
     },
     {
         id: 'ai-skills',
         label: 'AI Skills',
         sourceView: 'ansibleSkills',
-        status: 'placeholder',
+        status: 'ready',
     },
     {
         id: 'execution-environments',
@@ -177,6 +180,46 @@ export interface EnvironmentGroupsResult {
     readonly detail?: string;
 }
 
+export interface ToolEntry {
+    readonly name: string;
+    readonly description?: string;
+    readonly prompt: string;
+}
+
+export interface ToolGroup {
+    readonly id: string;
+    readonly label: string;
+    readonly tools: readonly ToolEntry[];
+}
+
+export interface ToolsResult {
+    readonly state: 'ready' | 'error';
+    readonly groups: readonly ToolGroup[];
+    readonly toolCount: number;
+    readonly detail?: string;
+}
+
+export interface SkillEntryView {
+    readonly id: string;
+    readonly name: string;
+    readonly module: string;
+    readonly source: string;
+    readonly description: string;
+    readonly prompt: string;
+}
+
+export interface SkillGroup {
+    readonly id: string;
+    readonly label: string;
+    readonly skills: readonly SkillEntryView[];
+}
+
+export interface SkillsResult {
+    readonly state: 'ready' | 'error';
+    readonly groups: readonly SkillGroup[];
+    readonly detail?: string;
+}
+
 /** Surface exposed to the renderer through the preload bridge. */
 export interface NavitaBridge {
     getState(): Promise<AppState>;
@@ -189,6 +232,9 @@ export interface NavitaBridge {
     testConnection(): Promise<AppState>;
     getDevTools(): Promise<DevToolsResult>;
     getEnvironments(workspacePath: string | null): Promise<EnvironmentGroupsResult>;
+    getTools(): Promise<ToolsResult>;
+    getSkills(): Promise<SkillsResult>;
+    copyText(text: string): Promise<void>;
     onStateChanged(listener: (state: AppState) => void): () => void;
     onToggleSidebar(listener: () => void): () => void;
 }

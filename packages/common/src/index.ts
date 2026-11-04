@@ -52,6 +52,12 @@ export type {
     ToxAvailability,
     ToxGhMatrixEntry,
 } from './types';
+export {
+    MCP_TOOL_CATEGORIES,
+    categorizeMcpTool,
+    type McpToolCategory,
+    type McpToolCategoryId,
+} from './mcpToolCategories';
 export { TelemetryEvents, buildOutcomeProperties } from './types';
 
 // --- Utils ---

@@ -22,9 +22,15 @@ export interface ProbeOptions {
     readonly timeoutMs?: number;
 }
 
+export interface McpToolSummary {
+    readonly name: string;
+    readonly description?: string;
+}
+
 export interface McpProbeResult {
     readonly toolCount: number;
     readonly toolNames: readonly string[];
+    readonly tools: readonly McpToolSummary[];
 }
 
 export interface LspProbeResult {
@@ -198,7 +204,10 @@ export function probeMcpServer(
             );
         },
         (line, ctx) => {
-            let message: { id?: unknown; result?: { tools?: { name?: unknown }[] } };
+            let message: {
+                id?: unknown;
+                result?: { tools?: { name?: unknown; description?: unknown }[] };
+            };
             try {
                 message = JSON.parse(line) as typeof message;
             } catch {
@@ -213,10 +222,19 @@ export function probeMcpServer(
             }
             if (message.id === 2) {
                 const tools = message.result?.tools ?? [];
-                const toolNames = tools
-                    .map((tool) => tool.name)
-                    .filter((name): name is string => typeof name === 'string');
-                ctx.finish({ toolCount: toolNames.length, toolNames });
+                const summaries: McpToolSummary[] = [];
+                for (const tool of tools) {
+                    if (typeof tool.name !== 'string') {
+                        continue;
+                    }
+                    summaries.push(
+                        typeof tool.description === 'string'
+                            ? { name: tool.name, description: tool.description }
+                            : { name: tool.name },
+                    );
+                }
+                const toolNames = summaries.map((tool) => tool.name);
+                ctx.finish({ toolCount: toolNames.length, toolNames, tools: summaries });
             }
         },
     );

@@ -23,6 +23,8 @@ import {
 import { buildMenuTemplate, type MenuContext, type MenuItemSpec } from './menu';
 import { loadDevTools } from './devtools';
 import { loadEnvironments } from './environments';
+import { loadSkills } from './skills';
+import { invalidateToolCache, loadTools } from './tools';
 import { probeServers, serverEnv, serverSpawnSpec, type SpawnSpec } from './servers';
 import { buildSnippet } from './snippet';
 import { StateStore, type PersistedState } from './store';
@@ -178,6 +180,7 @@ async function activateWorkspace(candidate: string): Promise<AppState> {
         throw new Error(`not a directory: ${candidate}`);
     }
     workspace = toWorkspaceEntry(candidate);
+    invalidateToolCache();
     persisted.recents = pushRecent(persisted.recents, workspace);
     persisted.lastWorkspace = workspace.path;
     store.save(persisted);
@@ -347,6 +350,16 @@ function registerIpc(): void {
     ipcMain.handle(IPC.getEnvironments, (_event, workspacePath: string | null) =>
         loadEnvironments(workspacePath),
     );
+    ipcMain.handle(IPC.getTools, () => {
+        const scripts = serverScripts();
+        const cwd = workspace?.path ?? process.cwd();
+        return loadTools(
+            serverSpawnSpec(process.execPath, scripts.mcp, serverEnv(cwd, skillSources())),
+            cwd,
+        );
+    });
+    ipcMain.handle(IPC.getSkills, () => loadSkills(serverScripts().skills));
+    ipcMain.handle(IPC.copyText, (_event, text: string) => clipboard.writeText(text));
     ipcMain.handle(IPC.testConnection, async () =>
         workspace === null ? currentState() : activateWorkspace(workspace.path),
     );

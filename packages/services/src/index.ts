@@ -5,6 +5,12 @@
 
 // Re-export everything from @ansible/common so Node.js consumers can use one import
 export {
+    MCP_TOOL_CATEGORIES,
+    categorizeMcpTool,
+    type McpToolCategory,
+    type McpToolCategoryId,
+} from '@ansible/common';
+export {
     discoverLocalEnvironments,
     type DiscoveryOptions,
     type LocalEnvironment,

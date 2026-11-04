@@ -7,13 +7,18 @@
 
 import * as vscode from 'vscode';
 import { STATIC_TOOLS, type McpToolDefinition, CreatorToolGenerator } from '@ansible/mcp-server';
-import { CreatorService, buildMcpToolExamplePrompt } from '@ansible/developer-services';
+import {
+    CreatorService,
+    MCP_TOOL_CATEGORIES,
+    buildMcpToolExamplePrompt,
+    categorizeMcpTool,
+    type McpToolCategoryId,
+} from '@ansible/developer-services';
 import { log } from '@src/extension';
 import { getMcpStatus, McpStatus } from '@src/mcp/cursorConfig';
 import { openChatWithPrompt } from '@src/features/chatProvider';
 
-type ToolCategory =
-    'getting_started' | 'discovery' | 'generation' | 'execution' | 'devtools' | 'creator';
+type ToolCategory = McpToolCategoryId;
 
 export interface ToolInfo {
     tool: McpToolDefinition;
@@ -233,26 +238,7 @@ export class McpToolsProvider implements vscode.TreeDataProvider<ToolTreeItem> {
      * @returns Category used to group the tool in the tree
      */
     private _categorizeStaticTool(name: string): ToolCategory {
-        if (name === 'get_agent_onboarding' || name === 'get_extension_walkthrough') {
-            return 'getting_started';
-        }
-        if (
-            name.includes('search') ||
-            name.includes('list') ||
-            name.includes('get_plugin_documentation')
-        ) {
-            return 'discovery';
-        }
-        if (name.includes('generate') || name.includes('build_ansible_task')) {
-            return 'generation';
-        }
-        if (name.includes('execution_environment') || name.includes('ee_')) {
-            return 'execution';
-        }
-        if (name.includes('dev_tools')) {
-            return 'devtools';
-        }
-        return 'discovery'; // default
+        return categorizeMcpTool(name);
     }
 
     /**
@@ -289,14 +275,7 @@ export class McpToolsProvider implements vscode.TreeDataProvider<ToolTreeItem> {
             }
 
             // Show tool categories
-            const categories: { id: ToolCategory; label: string }[] = [
-                { id: 'getting_started', label: 'Getting Started' },
-                { id: 'discovery', label: 'Discovery' },
-                { id: 'generation', label: 'Task Generation' },
-                { id: 'execution', label: 'Execution Environments' },
-                { id: 'devtools', label: 'Dev Tools' },
-                { id: 'creator', label: 'Creator' },
-            ];
+            const categories = MCP_TOOL_CATEGORIES;
 
             const categoryNodes = categories
                 .map((cat) => {

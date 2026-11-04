@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState, type JSX } from 'react';
 import { HARNESSES, SECTIONS, type AppState, type HarnessId, type SectionId } from '../shared/ipc';
 import { DevToolsView } from './components/DevToolsView';
 import { EnvironmentsView } from './components/EnvironmentsView';
+import { SkillsView } from './components/SkillsView';
+import { ToolsView } from './components/ToolsView';
 import { Sidebar } from './components/Sidebar';
 import { Welcome } from './components/Welcome';
 
@@ -89,6 +91,10 @@ export function App(): JSX.Element {
             });
     }, []);
 
+    const handleCopied = useCallback((label: string) => {
+        setNotice(`Prompt copied for ${label}.`);
+    }, []);
+
     if (state === null) {
         return <div className="loading">Starting navita…</div>;
     }
@@ -152,6 +158,14 @@ export function App(): JSX.Element {
 
                             {state.activeSection === 'env-managers' && (
                                 <EnvironmentsView workspacePath={state.workspace.path} />
+                            )}
+
+                            {state.activeSection === 'ai-tools' && (
+                                <ToolsView onCopied={handleCopied} />
+                            )}
+
+                            {state.activeSection === 'ai-skills' && (
+                                <SkillsView onCopied={handleCopied} />
                             )}
 
                             <section className="card">
