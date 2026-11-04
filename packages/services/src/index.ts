@@ -5,6 +5,12 @@
 
 // Re-export everything from @ansible/common so Node.js consumers can use one import
 export {
+    discoverLocalEnvironments,
+    type DiscoveryOptions,
+    type LocalEnvironment,
+    type LocalEnvironmentKind,
+} from './LocalEnvironments';
+export {
     log,
     setLogFunction,
     getLogFunction,

@@ -90,11 +90,6 @@ export class EnvironmentManagersProvider implements vscode.TreeDataProvider<Tree
     private async _loadEnvironments(): Promise<void> {
         const managers = new Map<string, PythonEnvironment[]>();
 
-        if (!this._pythonEnvService.isAvailable()) {
-            this._managers = managers;
-            return;
-        }
-
         try {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri;
             const currentEnv = await this._pythonEnvService.getEnvironment(workspaceFolder);

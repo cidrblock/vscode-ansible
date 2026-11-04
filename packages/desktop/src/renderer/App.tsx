@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type JSX } from 'react';
 
 import { HARNESSES, SECTIONS, type AppState, type HarnessId, type SectionId } from '../shared/ipc';
 import { DevToolsView } from './components/DevToolsView';
+import { EnvironmentsView } from './components/EnvironmentsView';
 import { Sidebar } from './components/Sidebar';
 import { Welcome } from './components/Welcome';
 
@@ -148,6 +149,10 @@ export function App(): JSX.Element {
                             <p className="muted">{state.workspace.path}</p>
 
                             {state.activeSection === 'dev-tools' && <DevToolsView />}
+
+                            {state.activeSection === 'env-managers' && (
+                                <EnvironmentsView workspacePath={state.workspace.path} />
+                            )}
 
                             <section className="card">
                                 <h2>Servers</h2>

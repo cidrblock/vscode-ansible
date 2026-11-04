@@ -14,7 +14,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { PythonExtension, ResolvedEnvironment, Environment } from '@vscode/python-extension';
-import type {
+import {
+    discoverLocalEnvironments,
+    type LocalEnvironment,
     PythonEnvironmentApi,
     PythonEnvironment,
     DidChangeEnvironmentEventArgs,
@@ -451,7 +453,11 @@ export class PythonEnvironmentService implements vscode.Disposable {
             }
         }
 
-        return undefined;
+        const local = await discoverLocalEnvironments({
+            workspacePath: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? null,
+        });
+        const active = local.find((entry) => entry.active) ?? local.at(0);
+        return active === undefined ? undefined : this._adaptLocalEnvironment(active);
     }
 
     /**
@@ -508,7 +514,39 @@ export class PythonEnvironmentService implements vscode.Disposable {
             }
         }
 
-        return [];
+        // Tier 3: neither Python extension is present, so fall back to the
+        // standalone discovery shared with the MCP server and navita.
+        const local = await discoverLocalEnvironments({
+            workspacePath: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+        });
+        if (local.length > 0) {
+            log(
+                `Fallback: ${String(local.length)} local environments discovered without extensions`,
+            );
+        }
+        return local.map((entry) => this._adaptLocalEnvironment(entry));
+    }
+
+    /**
+     * Adapt a locally discovered interpreter to the environment shape the
+     * extension consumes.
+     * @param local - Environment found without the Python extension
+     * @returns Environment carrying a synthetic manager id
+     */
+    private _adaptLocalEnvironment(local: LocalEnvironment): PythonEnvironment {
+        return {
+            envId: {
+                id: `local:${local.pythonPath}`,
+                managerId: `${PYTHON_EXT_ID}:${local.kind}`,
+            },
+            name: local.name,
+            displayName: local.name,
+            displayPath: local.pythonPath,
+            version: local.version ?? '',
+            environmentPath: vscode.Uri.file(local.binDir),
+            execInfo: { run: { executable: local.pythonPath } },
+            sysPrefix: local.binDir,
+        };
     }
 
     /**

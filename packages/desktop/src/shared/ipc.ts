@@ -17,6 +17,7 @@ export const IPC = {
     copySnippet: 'navita:copy-snippet',
     testConnection: 'navita:test-connection',
     getDevTools: 'navita:get-dev-tools',
+    getEnvironments: 'navita:get-environments',
 } as const;
 
 /** Sidebar sections, in the order they are ported from the extension views. */
@@ -50,7 +51,7 @@ export const SECTIONS: readonly Section[] = [
         id: 'env-managers',
         label: 'Environment Managers',
         sourceView: 'ansibleDevToolsEnvManagers',
-        status: 'placeholder',
+        status: 'ready',
     },
     {
         id: 'ai-tools',
@@ -157,6 +158,25 @@ export interface DevToolsResult {
     readonly detail?: string;
 }
 
+export interface LocalEnvironmentEntry {
+    readonly name: string;
+    readonly pythonPath: string;
+    readonly version?: string;
+    readonly active: boolean;
+}
+
+export interface EnvironmentGroup {
+    readonly id: string;
+    readonly label: string;
+    readonly environments: readonly LocalEnvironmentEntry[];
+}
+
+export interface EnvironmentGroupsResult {
+    readonly state: 'ready' | 'error';
+    readonly groups: readonly EnvironmentGroup[];
+    readonly detail?: string;
+}
+
 /** Surface exposed to the renderer through the preload bridge. */
 export interface NavitaBridge {
     getState(): Promise<AppState>;
@@ -168,6 +188,7 @@ export interface NavitaBridge {
     copySnippet(harness: HarnessId): Promise<string>;
     testConnection(): Promise<AppState>;
     getDevTools(): Promise<DevToolsResult>;
+    getEnvironments(workspacePath: string | null): Promise<EnvironmentGroupsResult>;
     onStateChanged(listener: (state: AppState) => void): () => void;
     onToggleSidebar(listener: () => void): () => void;
 }

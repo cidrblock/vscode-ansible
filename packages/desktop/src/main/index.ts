@@ -22,6 +22,7 @@ import {
 } from '../shared/ipc';
 import { buildMenuTemplate, type MenuContext, type MenuItemSpec } from './menu';
 import { loadDevTools } from './devtools';
+import { loadEnvironments } from './environments';
 import { probeServers, serverEnv, serverSpawnSpec, type SpawnSpec } from './servers';
 import { buildSnippet } from './snippet';
 import { StateStore, type PersistedState } from './store';
@@ -343,6 +344,9 @@ function registerIpc(): void {
         return snippet;
     });
     ipcMain.handle(IPC.getDevTools, () => loadDevTools());
+    ipcMain.handle(IPC.getEnvironments, (_event, workspacePath: string | null) =>
+        loadEnvironments(workspacePath),
+    );
     ipcMain.handle(IPC.testConnection, async () =>
         workspace === null ? currentState() : activateWorkspace(workspace.path),
     );
