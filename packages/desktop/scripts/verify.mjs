@@ -204,6 +204,27 @@ if (process.exitCode !== 1) {
         );
     }
 
+    const collectionsModule = await bundleModule('collections.ts', 'collections');
+    const collections = await collectionsModule.loadCollections();
+    if (collections.state === 'error') {
+        fail(`collections: ${collections.detail}`);
+    } else {
+        const names = collections.collections.slice(0, 2).map((entry) => entry.name);
+        console.log(
+            `PASS  collections      ${collections.collections.length} installed (${names.join(', ')}…)`,
+        );
+    }
+
+    const eeModule = await bundleModule('executionEnvironments.ts', 'execution-environments');
+    const executionEnvironments = await eeModule.loadExecutionEnvironments();
+    if (executionEnvironments.state === 'error') {
+        fail(`execution environments: ${executionEnvironments.detail}`);
+    } else {
+        console.log(
+            `PASS  exec-envs        ${executionEnvironments.environments.length} EE image(s) found`,
+        );
+    }
+
     const environmentsModule = await bundleModule('environments.ts', 'environments');
     const environments = await environmentsModule.loadEnvironments(WORKSPACE);
     if (environments.state === 'error') {

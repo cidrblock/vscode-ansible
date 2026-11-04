@@ -11,7 +11,9 @@ import {
     IPC,
     type AppState,
     type DevToolsResult,
+    type CollectionsResult,
     type EnvironmentGroupsResult,
+    type ExecutionEnvironmentsResult,
     type SkillsResult,
     type ToolsResult,
     type HarnessId,
@@ -37,6 +39,9 @@ const bridge: NavitaBridge = {
     getTools: () => ipcRenderer.invoke(IPC.getTools) as Promise<ToolsResult>,
     getSkills: () => ipcRenderer.invoke(IPC.getSkills) as Promise<SkillsResult>,
     copyText: (text: string) => ipcRenderer.invoke(IPC.copyText, text) as Promise<void>,
+    getCollections: () => ipcRenderer.invoke(IPC.getCollections) as Promise<CollectionsResult>,
+    getExecutionEnvironments: () =>
+        ipcRenderer.invoke(IPC.getExecutionEnvironments) as Promise<ExecutionEnvironmentsResult>,
     onStateChanged: (listener: (state: AppState) => void) => {
         const handler = (_event: IpcRendererEvent, state: AppState): void => {
             listener(state);

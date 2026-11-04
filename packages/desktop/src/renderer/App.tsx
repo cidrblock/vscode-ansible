@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState, type JSX } from 'react';
 
 import { HARNESSES, SECTIONS, type AppState, type HarnessId, type SectionId } from '../shared/ipc';
+import { CollectionsView } from './components/CollectionsView';
 import { DevToolsView } from './components/DevToolsView';
+import { ExecutionEnvironmentsView } from './components/ExecutionEnvironmentsView';
 import { EnvironmentsView } from './components/EnvironmentsView';
 import { SkillsView } from './components/SkillsView';
 import { ToolsView } from './components/ToolsView';
@@ -167,6 +169,12 @@ export function App(): JSX.Element {
                             {state.activeSection === 'ai-skills' && (
                                 <SkillsView onCopied={handleCopied} />
                             )}
+
+                            {state.activeSection === 'execution-environments' && (
+                                <ExecutionEnvironmentsView />
+                            )}
+
+                            {state.activeSection === 'installed-collections' && <CollectionsView />}
 
                             <section className="card">
                                 <h2>Servers</h2>

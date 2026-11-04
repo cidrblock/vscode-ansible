@@ -19,6 +19,8 @@ export const IPC = {
     getDevTools: 'navita:get-dev-tools',
     getEnvironments: 'navita:get-environments',
     getTools: 'navita:get-tools',
+    getCollections: 'navita:get-collections',
+    getExecutionEnvironments: 'navita:get-execution-environments',
     getSkills: 'navita:get-skills',
     copyText: 'navita:copy-text',
 } as const;
@@ -72,13 +74,13 @@ export const SECTIONS: readonly Section[] = [
         id: 'execution-environments',
         label: 'Execution Environments',
         sourceView: 'ansibleExecutionEnvironments',
-        status: 'placeholder',
+        status: 'ready',
     },
     {
         id: 'installed-collections',
         label: 'Installed Collections',
         sourceView: 'ansibleDevToolsCollections',
-        status: 'placeholder',
+        status: 'ready',
     },
     { id: 'playbooks', label: 'Playbooks', sourceView: 'ansiblePlaybooks', status: 'placeholder' },
     { id: 'creator', label: 'Creator', sourceView: 'ansibleCreator', status: 'placeholder' },
@@ -220,6 +222,32 @@ export interface SkillsResult {
     readonly detail?: string;
 }
 
+export interface CollectionEntry {
+    readonly name: string;
+    readonly version: string;
+    readonly description?: string;
+    readonly path?: string;
+    readonly pluginCount: number;
+}
+
+export interface CollectionsResult {
+    readonly state: 'ready' | 'error';
+    readonly collections: readonly CollectionEntry[];
+    readonly detail?: string;
+}
+
+export interface ExecutionEnvironmentEntry {
+    readonly fullName: string;
+    readonly imageId: string;
+    readonly created: string;
+}
+
+export interface ExecutionEnvironmentsResult {
+    readonly state: 'ready' | 'error';
+    readonly environments: readonly ExecutionEnvironmentEntry[];
+    readonly detail?: string;
+}
+
 /** Surface exposed to the renderer through the preload bridge. */
 export interface NavitaBridge {
     getState(): Promise<AppState>;
@@ -235,6 +263,8 @@ export interface NavitaBridge {
     getTools(): Promise<ToolsResult>;
     getSkills(): Promise<SkillsResult>;
     copyText(text: string): Promise<void>;
+    getCollections(): Promise<CollectionsResult>;
+    getExecutionEnvironments(): Promise<ExecutionEnvironmentsResult>;
     onStateChanged(listener: (state: AppState) => void): () => void;
     onToggleSidebar(listener: () => void): () => void;
 }

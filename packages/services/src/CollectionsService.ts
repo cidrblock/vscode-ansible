@@ -235,6 +235,14 @@ function writeCollectionsCache(
     collections: Map<string, CollectionData>,
     pluginDocs: Map<string, PluginData>,
 ): boolean {
+    // ansible-core always contributes ansible.builtin, so an empty map means
+    // the environment could not answer (usually ansible-doc is missing).
+    // Caching that would pin the empty answer for every later run.
+    if (collections.size === 0) {
+        logMessage('Skipped cache write - load produced no collections');
+        return false;
+    }
+
     if (!ensureCacheDir()) {
         return false;
     }

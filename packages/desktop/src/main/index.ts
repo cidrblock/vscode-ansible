@@ -23,6 +23,8 @@ import {
 import { buildMenuTemplate, type MenuContext, type MenuItemSpec } from './menu';
 import { loadDevTools } from './devtools';
 import { loadEnvironments } from './environments';
+import { loadCollections } from './collections';
+import { loadExecutionEnvironments } from './executionEnvironments';
 import { loadSkills } from './skills';
 import { invalidateToolCache, loadTools } from './tools';
 import { probeServers, serverEnv, serverSpawnSpec, type SpawnSpec } from './servers';
@@ -360,6 +362,8 @@ function registerIpc(): void {
     });
     ipcMain.handle(IPC.getSkills, () => loadSkills(serverScripts().skills));
     ipcMain.handle(IPC.copyText, (_event, text: string) => clipboard.writeText(text));
+    ipcMain.handle(IPC.getCollections, () => loadCollections());
+    ipcMain.handle(IPC.getExecutionEnvironments, () => loadExecutionEnvironments());
     ipcMain.handle(IPC.testConnection, async () =>
         workspace === null ? currentState() : activateWorkspace(workspace.path),
     );
