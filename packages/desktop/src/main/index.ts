@@ -26,6 +26,7 @@ import { installEnvironmentResolver, resetEnvironmentCache, resolveBinDir } from
 import { loadEnvironments } from './environments';
 import { loadCollections } from './collections';
 import { loadExecutionEnvironments } from './executionEnvironments';
+import { loadPlaybooks } from './playbooks';
 import { loadSkills } from './skills';
 import { invalidateToolCache, loadTools } from './tools';
 import { probeServers, serverEnv, serverSpawnSpec, type SpawnSpec } from './servers';
@@ -381,6 +382,9 @@ function registerIpc(): void {
     ipcMain.handle(IPC.copyText, (_event, text: string) => clipboard.writeText(text));
     ipcMain.handle(IPC.getCollections, () => loadCollections());
     ipcMain.handle(IPC.getExecutionEnvironments, () => loadExecutionEnvironments());
+    ipcMain.handle(IPC.getPlaybooks, (_event, workspacePath: string | null) =>
+        loadPlaybooks(workspacePath),
+    );
     ipcMain.handle(IPC.testConnection, async () =>
         workspace === null ? currentState() : activateWorkspace(workspace.path),
     );

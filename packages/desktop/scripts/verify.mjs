@@ -356,6 +356,18 @@ if (process.exitCode !== 1) {
         );
     }
 
+    const playbooksModule = await bundleModule('playbooks.ts', 'playbooks');
+    const playbooks = await playbooksModule.loadPlaybooks(WORKSPACE);
+    if (playbooks.state === 'error') {
+        fail(`playbooks: ${playbooks.detail}`);
+    } else {
+        const plays = playbooks.playbooks.reduce((total, entry) => total + entry.plays.length, 0);
+        const names = playbooks.playbooks.slice(0, 2).map((entry) => entry.relativePath);
+        console.log(
+            `PASS  playbooks       ${playbooks.playbooks.length} playbook(s), ${plays} plays (${names.join(', ') || 'none'})`,
+        );
+    }
+
     const environmentsModule = await bundleModule('environments.ts', 'environments');
     const environments = await environmentsModule.loadEnvironments(WORKSPACE);
     if (environments.state === 'error') {

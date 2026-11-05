@@ -21,6 +21,7 @@ export const IPC = {
     getTools: 'navita:get-tools',
     getCollections: 'navita:get-collections',
     getExecutionEnvironments: 'navita:get-execution-environments',
+    getPlaybooks: 'navita:get-playbooks',
     getSkills: 'navita:get-skills',
     copyText: 'navita:copy-text',
 } as const;
@@ -82,7 +83,7 @@ export const SECTIONS: readonly Section[] = [
         sourceView: 'ansibleDevToolsCollections',
         status: 'ready',
     },
-    { id: 'playbooks', label: 'Playbooks', sourceView: 'ansiblePlaybooks', status: 'placeholder' },
+    { id: 'playbooks', label: 'Playbooks', sourceView: 'ansiblePlaybooks', status: 'ready' },
     { id: 'creator', label: 'Creator', sourceView: 'ansibleCreator', status: 'placeholder' },
     {
         id: 'collection-sources',
@@ -248,6 +249,30 @@ export interface ExecutionEnvironmentsResult {
     readonly detail?: string;
 }
 
+/** One play inside a playbook, with the line it starts on. */
+export interface PlayEntry {
+    readonly name: string;
+    readonly hosts: string;
+    readonly lineNumber: number;
+}
+
+/** A playbook discovered in the workspace. */
+export interface PlaybookEntry {
+    readonly name: string;
+    readonly path: string;
+    readonly relativePath: string;
+    readonly playCount: number;
+    readonly plays: readonly PlayEntry[];
+    /** AI summary prompt for this playbook, copied by the row action. */
+    readonly prompt: string;
+}
+
+export interface PlaybooksResult {
+    readonly state: 'ready' | 'error';
+    readonly playbooks: readonly PlaybookEntry[];
+    readonly detail?: string;
+}
+
 /** Surface exposed to the renderer through the preload bridge. */
 export interface NavitaBridge {
     getState(): Promise<AppState>;
@@ -265,6 +290,7 @@ export interface NavitaBridge {
     copyText(text: string): Promise<void>;
     getCollections(): Promise<CollectionsResult>;
     getExecutionEnvironments(): Promise<ExecutionEnvironmentsResult>;
+    getPlaybooks(workspacePath: string | null): Promise<PlaybooksResult>;
     onStateChanged(listener: (state: AppState) => void): () => void;
     onToggleSidebar(listener: () => void): () => void;
 }

@@ -415,3 +415,59 @@ button {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
 }
+
+.playbook-group {
+    margin-bottom: 14px;
+}
+
+.group-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-muted);
+    margin: 0 0 6px;
+}
+
+.playbook-item + .playbook-item {
+    margin-top: 4px;
+}
+
+.disclosure {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--fg-muted);
+    cursor: pointer;
+}
+
+.disclosure:hover {
+    color: var(--fg);
+}
+
+.chevron {
+    transition: transform 120ms ease;
+}
+
+.chevron.open {
+    transform: rotate(90deg);
+}
+
+.play-list {
+    list-style: none;
+    margin: 2px 0 0 28px;
+    padding: 0;
+    border-left: 1px solid var(--border);
+}
+
+.play-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 5px 10px;
+}

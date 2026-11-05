@@ -4,6 +4,7 @@ import { HARNESSES, SECTIONS, type AppState, type HarnessId, type SectionId } fr
 import { CollectionsView } from './components/CollectionsView';
 import { DevToolsView } from './components/DevToolsView';
 import { ExecutionEnvironmentsView } from './components/ExecutionEnvironmentsView';
+import { PlaybooksView } from './components/PlaybooksView';
 import { EnvironmentsView } from './components/EnvironmentsView';
 import { SkillsView } from './components/SkillsView';
 import { ToolsView } from './components/ToolsView';
@@ -175,6 +176,13 @@ export function App(): JSX.Element {
                             )}
 
                             {state.activeSection === 'installed-collections' && <CollectionsView />}
+
+                            {state.activeSection === 'playbooks' && (
+                                <PlaybooksView
+                                    workspacePath={state.workspace.path}
+                                    onCopied={handleCopied}
+                                />
+                            )}
 
                             <section className="card">
                                 <h2>Servers</h2>
