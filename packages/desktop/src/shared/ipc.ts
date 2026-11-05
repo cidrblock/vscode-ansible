@@ -171,8 +171,16 @@ export interface McpStatus extends ServerStatus {
     readonly toolCount?: number;
 }
 
+/** Interpreter navita runs Ansible commands in. */
+export interface EnvironmentSummary {
+    readonly name: string;
+    readonly pythonPath: string;
+    readonly version?: string;
+}
+
 export interface AppState {
     readonly workspace: WorkspaceEntry | null;
+    readonly environment: EnvironmentSummary | null;
     readonly recents: readonly WorkspaceEntry[];
     readonly activeSection: SectionId;
     readonly mcp: McpStatus;

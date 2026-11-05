@@ -523,3 +523,96 @@ button {
     align-items: center;
     gap: 6px;
 }
+
+.nav-workspaces {
+    padding: 2px 0 4px;
+}
+
+.nav-workspace {
+    display: flex;
+    gap: 6px;
+    width: 100%;
+    padding: 4px 12px 4px 14px;
+    text-align: left;
+}
+
+.nav-workspace:hover:not(:disabled) {
+    background: var(--bg-input);
+}
+
+.nav-workspace:disabled {
+    cursor: default;
+}
+
+.nav-workspace-current .nav-workspace-name {
+    font-weight: 600;
+}
+
+.nav-check {
+    flex: none;
+    width: 10px;
+    padding-top: 2px;
+    font-size: 10px;
+    color: var(--accent);
+}
+
+.nav-workspace-body {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.nav-workspace-name {
+    font-size: 12px;
+}
+
+.nav-workspace-path {
+    overflow: hidden;
+    font-size: 11px;
+    color: var(--fg-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nav-empty {
+    margin: 0;
+    padding: 4px 12px 6px 28px;
+    font-size: 12px;
+    color: var(--fg-muted);
+}
+
+.nav-action {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding: 4px 12px 4px 28px;
+    font-size: 12px;
+    text-align: left;
+}
+
+.nav-action:hover {
+    background: var(--bg-input);
+}
+
+.nav-shortcut {
+    font-size: 11px;
+    color: var(--fg-muted);
+}
+
+.status-path {
+    max-width: 46ch;
+    overflow: hidden;
+    color: var(--fg-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.status-env {
+    display: inline-flex;
+    gap: 4px;
+    max-width: 32ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

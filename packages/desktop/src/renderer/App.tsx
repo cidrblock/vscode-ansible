@@ -111,31 +111,6 @@ export function App(): JSX.Element {
         <div className="app">
             <header className="topbar">
                 <span className="brand">navita</span>
-                {state.workspace !== null ? (
-                    <button
-                        className="chip"
-                        title={state.workspace.path}
-                        onClick={() => {
-                            run(() => window.navita.openWorkspace());
-                        }}
-                    >
-                        {state.workspace.name}
-                        <span className="chip-path">{state.workspace.path}</span>
-                    </button>
-                ) : (
-                    <span className="chip chip-empty">No workspace</span>
-                )}
-                <span className="spacer" />
-                {state.workspace !== null && (
-                    <button
-                        className="ghost"
-                        onClick={() => {
-                            run(() => window.navita.rescanWorkspace());
-                        }}
-                    >
-                        Rescan
-                    </button>
-                )}
             </header>
 
             <div className="body">
@@ -156,6 +131,17 @@ export function App(): JSX.Element {
                                 sections={SECTIONS}
                                 activeSection={state.activeSection}
                                 onSelect={selectSection}
+                                workspace={state.workspace}
+                                recents={state.recents}
+                                onOpenWorkspace={() => {
+                                    run(() => window.navita.openWorkspace());
+                                }}
+                                onActivateWorkspace={(workspacePath) => {
+                                    run(() => window.navita.activateWorkspace(workspacePath));
+                                }}
+                                onRescanWorkspace={() => {
+                                    run(() => window.navita.rescanWorkspace());
+                                }}
                             />
                         )}
                         <main className="pane">
@@ -222,6 +208,20 @@ export function App(): JSX.Element {
                     LSP: <StatusPill state={state.lsp.state} />
                 </span>
                 <span className="spacer" />
+                {state.workspace !== null && (
+                    <span className="status-path" title={state.workspace.path}>
+                        {state.workspace.path}
+                    </span>
+                )}
+                {state.workspace !== null && (
+                    <span
+                        className="status-env"
+                        title={state.environment?.pythonPath ?? 'No Python environment resolved'}
+                    >
+                        <span className="muted">Python</span>
+                        {state.environment?.name ?? '—'}
+                    </span>
+                )}
                 <span className="muted">0.0.1</span>
             </footer>
 

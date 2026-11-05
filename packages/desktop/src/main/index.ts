@@ -15,6 +15,7 @@ import {
     IPC,
     type AppState,
     type HarnessId,
+    type EnvironmentSummary,
     type McpStatus,
     type SectionId,
     type ServerStatus,
@@ -22,7 +23,13 @@ import {
 } from '../shared/ipc';
 import { buildMenuTemplate, type MenuContext, type MenuItemSpec } from './menu';
 import { loadDevTools } from './devtools';
-import { installEnvironmentResolver, resetEnvironmentCache, resolveBinDir } from './environment';
+import {
+    installEnvironmentResolver,
+    resetEnvironmentCache,
+    resolveBinDir,
+    resolveEnvironment,
+    summarizeEnvironment,
+} from './environment';
 import { loadEnvironments } from './environments';
 import { loadCollections } from './collections';
 import { loadExecutionEnvironments } from './executionEnvironments';
@@ -42,6 +49,7 @@ let mainWindow: BrowserWindow | null = null;
 let store: StateStore;
 let persisted: PersistedState;
 let workspace: WorkspaceEntry | null = null;
+let environment: EnvironmentSummary | null = null;
 let mcpStatus: McpStatus = { state: 'stopped' };
 let lspStatus: ServerStatus = { state: 'stopped' };
 
@@ -112,6 +120,7 @@ function spawnSpecs(
 function currentState(): AppState {
     return {
         workspace,
+        environment,
         recents: persisted.recents,
         activeSection: persisted.activeSection,
         mcp: mcpStatus,
@@ -199,6 +208,9 @@ async function activateWorkspace(candidate: string): Promise<AppState> {
         throw new Error(`not a directory: ${candidate}`);
     }
     workspace = toWorkspaceEntry(candidate);
+    // The previous workspace's interpreter must not linger in the status bar
+    // while this one is still being probed.
+    environment = null;
     // In-process services read the workspace from this variable the same way
     // the servers navita spawns do, so they must see it too.
     process.env.ANSIBLE_ENV_WORKSPACE = workspace.path;
@@ -212,7 +224,9 @@ async function activateWorkspace(candidate: string): Promise<AppState> {
     mainWindow?.setTitle(`${APP_NAME} — ${workspace.path}`);
     broadcast();
 
-    const binDir = await resolveBinDir(workspace.path, selectedEnvironment());
+    const resolved = await resolveEnvironment(workspace.path, selectedEnvironment());
+    environment = summarizeEnvironment(resolved);
+    const binDir = resolved?.binDir ?? null;
     const specs = spawnSpecs(workspace.path, binDir);
     const statuses = await probeServers(specs.mcp, specs.lsp, workspace.path);
     mcpStatus = statuses.mcp;
@@ -227,6 +241,7 @@ async function activateWorkspace(candidate: string): Promise<AppState> {
  */
 function closeWorkspace(): AppState {
     workspace = null;
+    environment = null;
     delete process.env.ANSIBLE_ENV_WORKSPACE;
     resetEnvironmentCache();
     persisted.lastWorkspace = null;

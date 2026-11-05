@@ -4,7 +4,7 @@ import * as path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { pickEnvironment, resolveBinDir } from '../src/main/environment';
+import { pickEnvironment, resolveBinDir, summarizeEnvironment } from '../src/main/environment';
 import type { LocalEnvironment } from '@ansible/developer-services';
 
 interface EnvironmentOptions {
@@ -95,5 +95,23 @@ describe('resolveBinDir', () => {
         );
 
         expect(resolved).not.toBe(path.join(workspace, 'gone', 'bin'));
+    });
+});
+
+describe('summarizeEnvironment', () => {
+    it('drops the internals the status bar does not show', () => {
+        expect(
+            summarizeEnvironment({
+                name: 'repo/.venv',
+                pythonPath: '/repo/.venv/bin/python3',
+                binDir: '/repo/.venv/bin',
+                kind: 'venv',
+                active: true,
+            }),
+        ).toEqual({ name: 'repo/.venv', pythonPath: '/repo/.venv/bin/python3' });
+    });
+
+    it('returns null when nothing was resolved', () => {
+        expect(summarizeEnvironment(undefined)).toBeNull();
     });
 });

@@ -20,6 +20,8 @@ import {
 } from '@ansible/developer-services';
 import type { LocalEnvironment } from '@ansible/developer-services';
 
+import type { EnvironmentSummary } from '../shared/ipc';
+
 /** Tools whose presence marks an environment as the Ansible one. */
 const ANSIBLE_TOOLS = ['ansible-doc', 'ansible-playbook'] as const;
 
@@ -88,9 +90,9 @@ const environmentCache = new Map<string, LocalEnvironment | undefined>();
  * @param selection - Interpreter the user pinned, or null to choose automatically.
  * @returns The chosen environment, or undefined when none was discovered.
  */
-async function resolveEnvironment(
+export async function resolveEnvironment(
     workspacePath: string | null,
-    selection: string | null,
+    selection: string | null = null,
 ): Promise<LocalEnvironment | undefined> {
     const key = `${workspacePath ?? ''}\u0000${selection ?? ''}`;
     if (environmentCache.has(key)) {
@@ -134,4 +136,22 @@ export function installEnvironmentResolver(
     CommandService.getInstance().setBinDirResolver(() =>
         resolveBinDir(getWorkspacePath(), getSelection()),
     );
+}
+
+/**
+ * Reduce a resolved environment to what the status bar shows.
+ * @param environment - Environment chosen for the workspace, if any.
+ * @returns Summary for the renderer, or null when nothing was resolved.
+ */
+export function summarizeEnvironment(
+    environment: LocalEnvironment | undefined,
+): EnvironmentSummary | null {
+    if (environment === undefined) {
+        return null;
+    }
+    return {
+        name: environment.name,
+        pythonPath: environment.pythonPath,
+        ...(environment.version === undefined ? {} : { version: environment.version }),
+    };
 }
