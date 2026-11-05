@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
 
-import type { CollectionSourcesResult, GitHubOrgSource } from '../../shared/ipc';
+import type { CollectionsResult, CollectionSourcesResult, GitHubOrgSource } from '../../shared/ipc';
+import { collectionCrumb, parseCollectionTrail } from '../collectionPath';
 import { CapNotice, FilterBox, filterItems } from '../filter';
 import { useTrail } from '../navigation';
+import { CollectionTree } from './CollectionTree';
 import { CopyButton } from './CopyButton';
 
 /** How often the view asks again while a catalog or organization scan is running. */
@@ -38,13 +40,21 @@ function orgSummary(org: GitHubOrgSource): string {
  * whole catalog behind a filter; an organization lists the collections its
  * cache holds, which the extension populates by scanning galaxy.yml files, and
  * navita can populate the same way through the service's token resolver.
+ * Opening a collection goes one level further: its metadata comes from the
+ * source, and its plugins come from the shared `CollectionTree` when the
+ * collection is installed.
  * @param props - Component properties.
  * @param props.onCopied - Called with a label once a prompt is copied.
+ * @param props.onNotice - Called with a message the documentation view wants surfaced.
  * @returns The collection sources panel.
  */
-export function CollectionSourcesView(props: { onCopied: (label: string) => void }): JSX.Element {
-    const { onCopied } = props;
+export function CollectionSourcesView(props: {
+    onCopied: (label: string) => void;
+    onNotice: (message: string) => void;
+}): JSX.Element {
+    const { onCopied, onNotice } = props;
     const [result, setResult] = useState<CollectionSourcesResult | null>(null);
+    const [installed, setInstalled] = useState<CollectionsResult | null>(null);
     const [galaxyQuery, setGalaxyQuery] = useState('');
     const [orgQuery, setOrgQuery] = useState('');
     const { trail, push } = useTrail('collection-sources');
@@ -86,6 +96,33 @@ export function CollectionSourcesView(props: { onCopied: (label: string) => void
         [result, galaxyQuery],
     );
 
+    const { collection } = parseCollectionTrail(trail);
+    const source = trail.at(0);
+
+    // Opening a collection asks the environment whether it is installed, which
+    // is what makes its plugin tree reachable from a source.
+    useEffect(() => {
+        if (collection === undefined) {
+            return undefined;
+        }
+        let active = true;
+        window.navita
+            .getCollections()
+            .then((next) => {
+                if (active) {
+                    setInstalled(next);
+                }
+            })
+            .catch(() => {
+                if (active) {
+                    setInstalled(null);
+                }
+            });
+        return () => {
+            active = false;
+        };
+    }, [collection]);
+
     const open = trail.at(-1);
 
     const org = useMemo(() => {
@@ -121,6 +158,75 @@ export function CollectionSourcesView(props: { onCopied: (label: string) => void
                 </div>
                 <p className="muted">{result.detail ?? 'Could not read collection sources.'}</p>
             </section>
+        );
+    }
+
+    if (collection !== undefined) {
+        // Metadata belongs to the source it was opened from: the Galaxy catalog
+        // knows downloads, an organization cache knows the repository.
+        const orgName = source?.id.startsWith(ORG_PREFIX)
+            ? source.id.slice(ORG_PREFIX.length)
+            : undefined;
+        const galaxyEntry =
+            orgName === undefined
+                ? result?.galaxy.find((entry) => entry.name === collection)
+                : undefined;
+        const orgEntry =
+            orgName === undefined
+                ? undefined
+                : result?.github
+                      .find((entry) => entry.org === orgName)
+                      ?.collections.find((entry) => entry.name === collection);
+        const prompt = galaxyEntry?.prompt ?? orgEntry?.prompt;
+        const entry = installed?.collections.find((item) => item.name === collection);
+
+        const lead = (
+            <>
+                {orgEntry !== undefined && orgEntry.description.length > 0 && (
+                    <p className="muted">{orgEntry.description}</p>
+                )}
+                <dl className="status-list">
+                    <dt>Source</dt>
+                    <dd>{orgName ?? 'Galaxy catalog'}</dd>
+                    <dt>Latest version</dt>
+                    <dd>{galaxyEntry?.version ?? orgEntry?.version ?? 'unknown'}</dd>
+                    {galaxyEntry !== undefined && (
+                        <>
+                            <dt>Downloads</dt>
+                            <dd>{galaxyEntry.downloadCount.toLocaleString()}</dd>
+                        </>
+                    )}
+                    {orgEntry !== undefined && (
+                        <>
+                            <dt>Repository</dt>
+                            <dd>{orgEntry.repository}</dd>
+                        </>
+                    )}
+                    {galaxyEntry?.deprecated === true && (
+                        <>
+                            <dt>Deprecated</dt>
+                            <dd>yes</dd>
+                        </>
+                    )}
+                </dl>
+                {prompt !== undefined && (
+                    <div className="lead-actions">
+                        <CopyButton label={collection} prompt={prompt} onCopied={onCopied} />
+                        <span className="muted">Copy an AI summary prompt for this collection</span>
+                    </div>
+                )}
+            </>
+        );
+
+        return (
+            <CollectionTree
+                section="collection-sources"
+                collection={collection}
+                {...(entry === undefined ? {} : { entry })}
+                lead={lead}
+                onCopied={onCopied}
+                onNotice={onNotice}
+            />
         );
     }
 
@@ -173,6 +279,14 @@ export function CollectionSourcesView(props: { onCopied: (label: string) => void
                                         <span className="item-tag">deprecated</span>
                                     )}
                                     <span className="item-tag">{collection.version}</span>
+                                    <button
+                                        className="ghost"
+                                        onClick={() => {
+                                            push(collectionCrumb(collection.name));
+                                        }}
+                                    >
+                                        Open
+                                    </button>
                                     <CopyButton
                                         label={collection.name}
                                         prompt={collection.prompt}
@@ -257,6 +371,14 @@ export function CollectionSourcesView(props: { onCopied: (label: string) => void
                                         </span>
                                     </div>
                                     <span className="item-tag">{collection.version}</span>
+                                    <button
+                                        className="ghost"
+                                        onClick={() => {
+                                            push(collectionCrumb(collection.name));
+                                        }}
+                                    >
+                                        Open
+                                    </button>
                                     <CopyButton
                                         label={collection.name}
                                         prompt={collection.prompt}

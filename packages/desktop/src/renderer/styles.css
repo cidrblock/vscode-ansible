@@ -353,6 +353,13 @@ button {
     align-items: center;
 }
 
+.lead-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px;
+}
+
 .harness-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

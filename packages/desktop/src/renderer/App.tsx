@@ -333,7 +333,10 @@ export function App(): JSX.Element {
                                 )}
 
                                 {state.activeSection === 'collection-sources' && (
-                                    <CollectionSourcesView onCopied={handleCopied} />
+                                    <CollectionSourcesView
+                                        onCopied={handleCopied}
+                                        onNotice={setNotice}
+                                    />
                                 )}
 
                                 {state.activeSection === 'harness-setup' && (

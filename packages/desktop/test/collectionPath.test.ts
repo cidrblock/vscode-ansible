@@ -48,4 +48,23 @@ describe('collectionPath', () => {
 
         expect(parseCollectionTrail(trail)).toEqual({ collection: 'ansible.posix' });
     });
+
+    it('ignores source crumbs so the same ids work from Collection Sources', () => {
+        const trail = [
+            { id: 'galaxy', label: 'Galaxy' },
+            collectionCrumb('community.general'),
+            pluginTypeCrumb('community.general', 'module'),
+        ];
+
+        expect(parseCollectionTrail(trail)).toEqual({
+            collection: 'community.general',
+            pluginType: 'module',
+        });
+    });
+
+    it('ignores an organization crumb', () => {
+        const trail = [{ id: 'github:ansible-collections', label: 'ansible-collections' }];
+
+        expect(parseCollectionTrail(trail)).toEqual({});
+    });
 });
