@@ -142,27 +142,62 @@ button {
     padding: 6px 0;
 }
 
-.section-header {
-    display: flex;
-    gap: 6px;
-    width: 100%;
-    padding: 5px 12px;
-    text-align: left;
+.nav-group {
+    padding: 2px 0 6px;
 }
 
-.section-header:hover {
+.nav-group + .nav-group {
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+    margin-top: 2px;
+}
+
+.nav-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 4px 12px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+}
+
+.nav-group-header:hover {
     background: var(--bg-input);
 }
 
-.section-active > .section-header {
-    font-weight: 600;
+.nav-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
-.section-body {
-    padding: 0 12px 8px 30px;
+.nav-item {
+    display: block;
+    width: 100%;
+    padding: 5px 12px 5px 28px;
+    text-align: left;
+    color: var(--fg);
+}
+
+.nav-item:hover {
+    background: var(--bg-input);
+}
+
+.nav-item-active {
+    background: var(--bg-input);
+    font-weight: 600;
+    box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .caret {
+    display: inline-block;
+    width: 10px;
+    font-size: 10px;
     color: var(--fg-muted);
 }
 

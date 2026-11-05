@@ -40,58 +40,84 @@ export type SectionId =
     | 'creator'
     | 'collection-sources';
 
+/** Groups the sidebar collapses as a unit. */
+export type SectionGroupId = 'environment' | 'ai' | 'content';
+
+export interface SectionGroup {
+    readonly id: SectionGroupId;
+    readonly label: string;
+}
+
+/** Sidebar groups, in display order. */
+export const SECTION_GROUPS: readonly SectionGroup[] = [
+    { id: 'environment', label: 'Environment' },
+    { id: 'ai', label: 'AI' },
+    { id: 'content', label: 'Ansible Content' },
+];
+
 export interface Section {
     readonly id: SectionId;
     readonly label: string;
+    /** Collapsible group this section belongs to. */
+    readonly group: SectionGroupId;
     /** Extension view this section ports, for traceability. */
     readonly sourceView: string;
-    readonly status: 'ready' | 'placeholder';
 }
 
 export const SECTIONS: readonly Section[] = [
     {
         id: 'dev-tools',
         label: 'Ansible Dev Tools',
+        group: 'environment',
         sourceView: 'ansibleDevToolsPackages',
-        status: 'ready',
     },
     {
         id: 'env-managers',
         label: 'Environment Managers',
+        group: 'environment',
         sourceView: 'ansibleDevToolsEnvManagers',
-        status: 'ready',
     },
     {
         id: 'ai-tools',
         label: 'AI Tools',
+        group: 'ai',
         sourceView: 'ansibleMcpTools',
-        status: 'ready',
     },
     {
         id: 'ai-skills',
         label: 'AI Skills',
+        group: 'ai',
         sourceView: 'ansibleSkills',
-        status: 'ready',
     },
     {
         id: 'execution-environments',
         label: 'Execution Environments',
+        group: 'content',
         sourceView: 'ansibleExecutionEnvironments',
-        status: 'ready',
     },
     {
         id: 'installed-collections',
         label: 'Installed Collections',
+        group: 'content',
         sourceView: 'ansibleDevToolsCollections',
-        status: 'ready',
     },
-    { id: 'playbooks', label: 'Playbooks', sourceView: 'ansiblePlaybooks', status: 'ready' },
-    { id: 'creator', label: 'Creator', sourceView: 'ansibleCreator', status: 'ready' },
+    {
+        id: 'playbooks',
+        label: 'Playbooks',
+        group: 'content',
+        sourceView: 'ansiblePlaybooks',
+    },
+    {
+        id: 'creator',
+        label: 'Creator',
+        group: 'content',
+        sourceView: 'ansibleCreator',
+    },
     {
         id: 'collection-sources',
         label: 'Collection Sources',
+        group: 'content',
         sourceView: 'ansibleCollectionSources',
-        status: 'ready',
     },
 ];
 

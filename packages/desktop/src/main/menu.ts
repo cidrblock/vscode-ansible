@@ -8,6 +8,7 @@
 import {
     HARNESSES,
     SECTIONS,
+    SECTION_GROUPS,
     type MenuAction,
     type SectionId,
     type WorkspaceEntry,
@@ -32,6 +33,34 @@ export interface MenuContext {
     readonly hasWorkspace: boolean;
     readonly recents: readonly WorkspaceEntry[];
     readonly activeSection: SectionId;
+}
+
+/**
+ * Build one View menu entry per section, separated by sidebar group.
+ * @param activeSection - Section currently shown in the pane.
+ * @returns Menu entries in sidebar order, with a separator between groups.
+ */
+function sectionMenuItems(activeSection: SectionId): MenuItemSpec[] {
+    const items: MenuItemSpec[] = [];
+    for (const group of SECTION_GROUPS) {
+        const grouped = SECTIONS.filter((section) => section.group === group.id);
+        if (grouped.length === 0) {
+            continue;
+        }
+        if (items.length > 0) {
+            items.push({ type: 'separator' });
+        }
+        for (const section of grouped) {
+            items.push({
+                label: section.label,
+                type: 'checkbox',
+                checked: section.id === activeSection,
+                action: 'show-section',
+                actionArg: section.id,
+            });
+        }
+    }
+    return items;
 }
 
 /**
@@ -78,13 +107,7 @@ export function buildMenuTemplate(context: MenuContext): MenuItemSpec[] {
         submenu: [
             { label: 'Toggle Sidebar', accelerator: 'CmdOrCtrl+B', action: 'toggle-sidebar' },
             { type: 'separator' },
-            ...SECTIONS.map((section): MenuItemSpec => ({
-                label: section.label,
-                type: 'checkbox',
-                checked: section.id === activeSection,
-                action: 'show-section',
-                actionArg: section.id,
-            })),
+            ...sectionMenuItems(activeSection),
             { type: 'separator' },
             { label: 'Reload', accelerator: 'F5', action: 'reload' },
             { label: 'Toggle Developer Tools', accelerator: 'CmdOrCtrl+Alt+I', action: 'devtools' },
