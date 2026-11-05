@@ -22,6 +22,7 @@ export const IPC = {
     getCollections: 'navita:get-collections',
     getExecutionEnvironments: 'navita:get-execution-environments',
     getPlaybooks: 'navita:get-playbooks',
+    getCreator: 'navita:get-creator',
     getSkills: 'navita:get-skills',
     copyText: 'navita:copy-text',
 } as const;
@@ -84,7 +85,7 @@ export const SECTIONS: readonly Section[] = [
         status: 'ready',
     },
     { id: 'playbooks', label: 'Playbooks', sourceView: 'ansiblePlaybooks', status: 'ready' },
-    { id: 'creator', label: 'Creator', sourceView: 'ansibleCreator', status: 'placeholder' },
+    { id: 'creator', label: 'Creator', sourceView: 'ansibleCreator', status: 'ready' },
     {
         id: 'collection-sources',
         label: 'Collection Sources',
@@ -273,6 +274,30 @@ export interface PlaybooksResult {
     readonly detail?: string;
 }
 
+/** One ansible-creator command, with a template users complete then paste. */
+export interface CreatorCommandEntry {
+    /** Full command path, for example `init collection`. */
+    readonly path: string;
+    /** Top-level command this one belongs to, for grouping. */
+    readonly group: string;
+    /** Path below the group, for example `collection`. */
+    readonly name: string;
+    readonly description?: string;
+    /** Command line with <placeholders> for the arguments navita cannot know. */
+    readonly command: string;
+    /** Schema keys the command requires. */
+    readonly required: readonly string[];
+    readonly optionalCount: number;
+}
+
+export interface CreatorResult {
+    readonly state: 'ready' | 'error';
+    readonly status: 'unknown' | 'not-installed' | 'outdated' | 'ready';
+    readonly version?: string;
+    readonly commands: readonly CreatorCommandEntry[];
+    readonly detail?: string;
+}
+
 /** Surface exposed to the renderer through the preload bridge. */
 export interface NavitaBridge {
     getState(): Promise<AppState>;
@@ -291,6 +316,7 @@ export interface NavitaBridge {
     getCollections(): Promise<CollectionsResult>;
     getExecutionEnvironments(): Promise<ExecutionEnvironmentsResult>;
     getPlaybooks(workspacePath: string | null): Promise<PlaybooksResult>;
+    getCreator(): Promise<CreatorResult>;
     onStateChanged(listener: (state: AppState) => void): () => void;
     onToggleSidebar(listener: () => void): () => void;
 }

@@ -5,6 +5,7 @@ import { CollectionsView } from './components/CollectionsView';
 import { DevToolsView } from './components/DevToolsView';
 import { ExecutionEnvironmentsView } from './components/ExecutionEnvironmentsView';
 import { PlaybooksView } from './components/PlaybooksView';
+import { CreatorView } from './components/CreatorView';
 import { EnvironmentsView } from './components/EnvironmentsView';
 import { SkillsView } from './components/SkillsView';
 import { ToolsView } from './components/ToolsView';
@@ -182,6 +183,10 @@ export function App(): JSX.Element {
                                     workspacePath={state.workspace.path}
                                     onCopied={handleCopied}
                                 />
+                            )}
+
+                            {state.activeSection === 'creator' && (
+                                <CreatorView onCopied={handleCopied} />
                             )}
 
                             <section className="card">

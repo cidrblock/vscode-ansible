@@ -368,6 +368,17 @@ if (process.exitCode !== 1) {
         );
     }
 
+    const creatorModule = await bundleModule('creator.ts', 'creator');
+    const creator = await creatorModule.loadCreator();
+    if (creator.state === 'error') {
+        fail(`creator: ${creator.detail}`);
+    } else {
+        const groups = [...new Set(creator.commands.map((entry) => entry.group))];
+        console.log(
+            `PASS  creator         ${creator.commands.length} commands in ${groups.join(', ')}`,
+        );
+    }
+
     const environmentsModule = await bundleModule('environments.ts', 'environments');
     const environments = await environmentsModule.loadEnvironments(WORKSPACE);
     if (environments.state === 'error') {
