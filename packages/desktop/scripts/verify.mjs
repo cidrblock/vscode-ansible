@@ -7,6 +7,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,6 +18,35 @@ const LSP = path.join(DIST, 'servers', 'language-server.js');
 const WORKSPACE = process.cwd();
 const PKG = path.resolve(here, '..');
 const REPO = path.resolve(PKG, '..', '..');
+
+/**
+ * Find a virtual environment with the ansible tools that is not on PATH.
+ * @returns Absolute environment directory, or undefined when none is available.
+ */
+function findUnactivatedVenv() {
+    const candidates = [
+        process.env.NAVITA_TEST_VENV,
+        path.join(REPO, '..', 'tools', 'venv'),
+        path.join(REPO, '.venv'),
+    ];
+    return candidates.find(
+        (candidate) =>
+            typeof candidate === 'string' && fs.existsSync(path.join(candidate, 'bin', 'ansible-doc')),
+    );
+}
+
+const TOOL_VENV = findUnactivatedVenv();
+const onPath = (tool) =>
+    (process.env.PATH ?? '')
+        .split(path.delimiter)
+        .some((directory) => directory !== '' && fs.existsSync(path.join(directory, tool)));
+// The views read the Ansible tools off PATH, so make the check reproducible
+// without a manual activation, without overriding a real one.
+if (!onPath('ansible-doc') && TOOL_VENV !== undefined) {
+    process.env.PATH = [path.join(TOOL_VENV, 'bin'), process.env.PATH ?? '']
+        .filter((entry) => entry !== '')
+        .join(path.delimiter);
+}
 
 function fail(message) {
     console.error(`FAIL ${message}`);
@@ -120,6 +150,11 @@ function probeLsp() {
 }
 
 
+const SERVICE_ALIASES = {
+    '@ansible/common': path.join(REPO, 'packages', 'common', 'src', 'index.ts'),
+    '@ansible/developer-services': path.join(REPO, 'packages', 'services', 'src', 'index.ts'),
+};
+
 /**
  * Bundle a main-process view module for Node and report what it discovers.
  * Bundling keeps the check honest: it exercises the same code the main
@@ -138,18 +173,114 @@ async function bundleModule(entry, name) {
         format: 'cjs',
         logLevel: 'silent',
         external: ['vscode'],
-        alias: {
-            '@ansible/common': path.join(REPO, 'packages', 'common', 'src', 'index.ts'),
-            '@ansible/developer-services': path.join(
-                REPO,
-                'packages',
-                'services',
-                'src',
-                'index.ts',
-            ),
-        },
+        alias: SERVICE_ALIASES,
     });
     return createRequire(import.meta.url)(outfile);
+}
+
+/**
+ * Bundle several main-process modules into one file, so they share a single
+ * copy of the services package the way the real main process does.
+ * @param entries - Map of exported name to module file in src/main.
+ * @param name - Base name for the generated entry and output files.
+ * @returns The bundled module namespaces.
+ */
+async function bundleTogether(entries, name) {
+    const esbuild = await import('esbuild');
+    const directory = path.join(DIST, 'verify');
+    fs.mkdirSync(directory, { recursive: true });
+    const entry = path.join(directory, `${name}-entry.ts`);
+    fs.writeFileSync(
+        entry,
+        Object.entries(entries)
+            .map(
+                ([exportName, moduleFile]) =>
+                    `export * as ${exportName} from ${JSON.stringify(path.join(PKG, 'src', 'main', moduleFile))};`,
+            )
+            .join('\n') + '\n',
+    );
+    const outfile = path.join(directory, `${name}.cjs`);
+    await esbuild.build({
+        entryPoints: [entry],
+        outfile,
+        bundle: true,
+        platform: 'node',
+        format: 'cjs',
+        logLevel: 'silent',
+        external: ['vscode'],
+        alias: SERVICE_ALIASES,
+    });
+    return createRequire(import.meta.url)(outfile);
+}
+
+/**
+ * Prove the environment resolver reaches the services: a workspace virtual
+ * environment that is not on PATH must still answer the collections view.
+ */
+async function probeResolver() {
+    const venv = findUnactivatedVenv();
+    if (venv === undefined) {
+        console.log('SKIP  resolver        no unactivated venv with ansible-doc to test');
+        return;
+    }
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'navita-resolver-'));
+    fs.symlinkSync(path.resolve(venv), path.join(workspace, '.venv'), 'dir');
+    await bundleTogether({ environment: 'environment.ts', collections: 'collections.ts' }, 'resolver');
+    const script = path.join(DIST, 'verify', 'resolver-check.cjs');
+    fs.writeFileSync(
+        script,
+        [
+            "const modules = require('./resolver.cjs');",
+            'const workspace = process.env.NAVITA_CHECK_WORKSPACE;',
+            'process.env.ANSIBLE_ENV_WORKSPACE = workspace;',
+            'modules.environment.installEnvironmentResolver(() => process.env.ANSIBLE_ENV_WORKSPACE);',
+            '(async () => {',
+            '    const binDir = await modules.environment.resolveBinDir(workspace);',
+            '    const result = await modules.collections.loadCollections();',
+            '    process.stdout.write(JSON.stringify({ binDir, state: result.state, count: result.collections.length, detail: result.detail ?? null }));',
+            '})().catch((error) => {',
+            '    process.stdout.write(JSON.stringify({ binDir: null, state: "error", count: 0, detail: String(error) }));',
+            '});',
+            '',
+        ].join('\n'),
+    );
+    const result = await new Promise((resolve, reject) => {
+        const child = spawn(process.execPath, [script], {
+            cwd: workspace,
+            env: {
+                ...process.env,
+                // Deliberately without the venv: only the resolver can find it.
+                PATH: '/usr/bin:/bin',
+                NAVITA_CHECK_WORKSPACE: workspace,
+            },
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        let out = '';
+        let err = '';
+        child.stdout.on('data', (chunk) => (out += chunk));
+        child.stderr.on('data', (chunk) => (err += chunk));
+        child.on('error', reject);
+        child.on('close', (code) => {
+            // The services log to stdout as well, so take the JSON line.
+            const payload = out
+                .split('\n')
+                .reverse()
+                .find((line) => line.trim().startsWith('{'));
+            try {
+                resolve(JSON.parse(payload));
+            } catch {
+                reject(new Error(`resolver check exited ${code} without JSON: ${err.slice(-400)}`));
+            }
+        });
+    });
+    fs.rmSync(workspace, { recursive: true, force: true });
+    if (result.state !== 'ready' || result.count < 1) {
+        fail(`resolver: ${result.detail ?? `no collections via ${result.binDir}`}`);
+    } else {
+        console.log(
+            `PASS  resolver        ${result.count} collection(s) from ${path.basename(path.dirname(path.dirname(result.binDir)))}/.venv off PATH`,
+        );
+    }
 }
 
 for (const script of [MCP, LSP]) {
@@ -234,4 +365,6 @@ if (process.exitCode !== 1) {
         const labels = environments.groups.map((group) => group.label);
         console.log(`PASS  environments     ${count} across ${labels.join(', ') || '(none)'}`);
     }
+
+    await probeResolver();
 }

@@ -22,6 +22,7 @@ import {
 } from '../shared/ipc';
 import { buildMenuTemplate, type MenuContext, type MenuItemSpec } from './menu';
 import { loadDevTools } from './devtools';
+import { installEnvironmentResolver, resetEnvironmentCache, resolveBinDir } from './environment';
 import { loadEnvironments } from './environments';
 import { loadCollections } from './collections';
 import { loadExecutionEnvironments } from './executionEnvironments';
@@ -84,13 +85,17 @@ function skillSources(): string[] {
 }
 
 /**
- *
+ * Build the spawn specs for the two bundled servers.
  * @param workspacePath - Absolute workspace path handed to the server.
+ * @param binDir - Python environment prepended to the servers' PATH.
  * @returns Spawn specs for the MCP server and the language server.
  */
-function spawnSpecs(workspacePath: string): { mcp: SpawnSpec; lsp: SpawnSpec } {
+function spawnSpecs(
+    workspacePath: string,
+    binDir: string | null = null,
+): { mcp: SpawnSpec; lsp: SpawnSpec } {
     const scripts = serverScripts();
-    const env = serverEnv(workspacePath, skillSources());
+    const env = serverEnv(workspacePath, skillSources(), process.env, binDir);
     return {
         mcp: serverSpawnSpec(process.execPath, scripts.mcp, env),
         lsp: serverSpawnSpec(process.execPath, scripts.lsp, env, ['--stdio']),
@@ -182,6 +187,10 @@ async function activateWorkspace(candidate: string): Promise<AppState> {
         throw new Error(`not a directory: ${candidate}`);
     }
     workspace = toWorkspaceEntry(candidate);
+    // In-process services read the workspace from this variable the same way
+    // the servers navita spawns do, so they must see it too.
+    process.env.ANSIBLE_ENV_WORKSPACE = workspace.path;
+    resetEnvironmentCache();
     invalidateToolCache();
     persisted.recents = pushRecent(persisted.recents, workspace);
     persisted.lastWorkspace = workspace.path;
@@ -191,7 +200,8 @@ async function activateWorkspace(candidate: string): Promise<AppState> {
     mainWindow?.setTitle(`${APP_NAME} — ${workspace.path}`);
     broadcast();
 
-    const specs = spawnSpecs(workspace.path);
+    const binDir = await resolveBinDir(workspace.path);
+    const specs = spawnSpecs(workspace.path, binDir);
     const statuses = await probeServers(specs.mcp, specs.lsp, workspace.path);
     mcpStatus = statuses.mcp;
     lspStatus = statuses.lsp;
@@ -205,6 +215,8 @@ async function activateWorkspace(candidate: string): Promise<AppState> {
  */
 function closeWorkspace(): AppState {
     workspace = null;
+    delete process.env.ANSIBLE_ENV_WORKSPACE;
+    resetEnvironmentCache();
     persisted.lastWorkspace = null;
     store.save(persisted);
     mcpStatus = { state: 'stopped' };
@@ -352,11 +364,16 @@ function registerIpc(): void {
     ipcMain.handle(IPC.getEnvironments, (_event, workspacePath: string | null) =>
         loadEnvironments(workspacePath),
     );
-    ipcMain.handle(IPC.getTools, () => {
+    ipcMain.handle(IPC.getTools, async () => {
         const scripts = serverScripts();
         const cwd = workspace?.path ?? process.cwd();
+        const binDir = workspace === null ? null : await resolveBinDir(workspace.path);
         return loadTools(
-            serverSpawnSpec(process.execPath, scripts.mcp, serverEnv(cwd, skillSources())),
+            serverSpawnSpec(
+                process.execPath,
+                scripts.mcp,
+                serverEnv(cwd, skillSources(), process.env, binDir),
+            ),
             cwd,
         );
     });
@@ -401,6 +418,7 @@ function createWindow(): void {
 app.setName(APP_NAME);
 
 void app.whenReady().then(() => {
+    installEnvironmentResolver(() => workspace?.path ?? null);
     store = new StateStore(path.join(app.getPath('userData'), 'state.json'));
     persisted = store.load();
     registerIpc();

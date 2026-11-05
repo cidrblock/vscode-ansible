@@ -54,16 +54,24 @@ function isElectronBinary(execPath: string): boolean {
  * @param workspacePath - Absolute workspace path handed to the server.
  * @param skillSources - Skill source directories exposed to the server.
  * @param base - Base environment; defaults to the current process environment.
+ * @param binDir - Python environment bin dir to put first on PATH.
  * @returns Environment map for the child process.
  */
 export function serverEnv(
     workspacePath: string | null,
     skillSources: readonly string[],
     base: NodeJS.ProcessEnv = process.env,
+    binDir: string | null = null,
 ): NodeJS.ProcessEnv {
     const env: NodeJS.ProcessEnv = { ...base };
     if (workspacePath !== null) {
         env.ANSIBLE_ENV_WORKSPACE = workspacePath;
+    }
+    if (binDir !== null) {
+        // Servers are separate processes, so the environment navita picked
+        // reaches them through PATH rather than a resolver.
+        const currentPath = env.PATH ?? '';
+        env.PATH = currentPath === '' ? binDir : `${binDir}${path.delimiter}${currentPath}`;
     }
     if (skillSources.length > 0) {
         env.ANSIBLE_SKILL_SOURCES = JSON.stringify(

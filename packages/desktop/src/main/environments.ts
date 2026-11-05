@@ -5,6 +5,8 @@
 
 import { discoverLocalEnvironments, type LocalEnvironment } from '@ansible/developer-services';
 
+import { pickEnvironment } from './environment';
+
 import type {
     EnvironmentGroup,
     EnvironmentGroupsResult,
@@ -63,7 +65,14 @@ export async function loadEnvironments(
 ): Promise<EnvironmentGroupsResult> {
     try {
         const environments = await discoverLocalEnvironments({ workspacePath });
-        return { state: 'ready', groups: groupEnvironments(environments) };
+        const chosen = pickEnvironment(environments);
+        // Discovery marks whatever is on PATH as active; the view is more useful
+        // when it marks the environment navita will actually run commands in.
+        const marked = environments.map((environment) => ({
+            ...environment,
+            active: environment === chosen,
+        }));
+        return { state: 'ready', groups: groupEnvironments(marked) };
     } catch (error: unknown) {
         return {
             state: 'error',
