@@ -477,6 +477,54 @@ button {
     gap: 3px;
 }
 
+/*
+ * A row that drills in is one target. The transparent button covers the row and
+ * carries the click, the chevron only marks the direction, and any real control
+ * inside the row is lifted above the overlay so it keeps its own hit area.
+ */
+.item-row-drill {
+    position: relative;
+    cursor: pointer;
+}
+
+.item-row-drill:hover {
+    box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.item-row-drill > .icon-button {
+    position: relative;
+    /* Above the row overlay: a copy button must keep its own hit area. */
+    z-index: 2;
+}
+
+.row-hit {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    padding: 0;
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+    cursor: pointer;
+}
+
+.row-hit:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.drill-chevron {
+    flex: none;
+    align-self: center;
+    display: inline-flex;
+    color: var(--fg-muted);
+    pointer-events: none;
+}
+
+.item-row-drill:hover .drill-chevron {
+    color: var(--accent);
+}
+
 .item-title {
     font-weight: 600;
     overflow-wrap: anywhere;
@@ -523,11 +571,6 @@ button {
 .icon-button:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
-}
-
-/* Trailing affordance on a row that drills in; reads as navigation, not action. */
-.drill-button {
-    color: var(--fg-muted);
 }
 
 .playbook-group {

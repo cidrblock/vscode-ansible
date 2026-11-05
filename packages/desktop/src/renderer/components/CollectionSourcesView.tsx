@@ -10,7 +10,7 @@ import { CapNotice, FilterBox, filterItems } from '../filter';
 import { useTrail } from '../navigation';
 import { CollectionTree } from './CollectionTree';
 import { CopyButton } from './CopyButton';
-import { DrillButton } from './DrillButton';
+import { DrillLink } from './DrillLink';
 
 /** How often the view asks again while a catalog or organization scan is running. */
 const POLL_MS = 2500;
@@ -265,7 +265,7 @@ export function CollectionSourcesView(props: {
                     <>
                         <ul className="item-list">
                             {galaxyCatalogue.items.map((collection) => (
-                                <li key={collection.name} className="item-row">
+                                <li key={collection.name} className="item-row item-row-drill">
                                     <div className="item-main">
                                         <span className="item-title">{collection.name}</span>
                                         <span className="item-description">
@@ -281,7 +281,7 @@ export function CollectionSourcesView(props: {
                                         prompt={collection.prompt}
                                         onCopied={onCopied}
                                     />
-                                    <DrillButton
+                                    <DrillLink
                                         label={collection.name}
                                         onOpen={() => {
                                             push(collectionCrumb(collection.name));
@@ -356,7 +356,7 @@ export function CollectionSourcesView(props: {
                     <>
                         <ul className="item-list">
                             {orgCatalogue.items.map((collection) => (
-                                <li key={collection.name} className="item-row">
+                                <li key={collection.name} className="item-row item-row-drill">
                                     <div className="item-main">
                                         <span className="item-title">{collection.name}</span>
                                         <span className="item-description">
@@ -371,7 +371,7 @@ export function CollectionSourcesView(props: {
                                         prompt={collection.prompt}
                                         onCopied={onCopied}
                                     />
-                                    <DrillButton
+                                    <DrillLink
                                         label={collection.name}
                                         onOpen={() => {
                                             push(collectionCrumb(collection.name));
@@ -406,7 +406,7 @@ export function CollectionSourcesView(props: {
                 </button>
             </div>
             <ul className="item-list">
-                <li className="item-row">
+                <li className="item-row item-row-drill">
                     <div className="item-main">
                         <span className="item-title">Galaxy catalog</span>
                         <span className="item-description">
@@ -417,7 +417,7 @@ export function CollectionSourcesView(props: {
                                   : `${String(result.total)} collections · searchable`}
                         </span>
                     </div>
-                    <DrillButton
+                    <DrillLink
                         label="Galaxy"
                         title="Browse Galaxy collections"
                         onOpen={() => {
@@ -426,12 +426,12 @@ export function CollectionSourcesView(props: {
                     />
                 </li>
                 {(result?.github ?? []).map((orgEntry) => (
-                    <li key={orgEntry.org} className="item-row">
+                    <li key={orgEntry.org} className="item-row item-row-drill">
                         <div className="item-main">
                             <span className="item-title">{orgEntry.org}</span>
                             <span className="item-description">{orgSummary(orgEntry)}</span>
                         </div>
-                        <DrillButton
+                        <DrillLink
                             label={orgEntry.org}
                             onOpen={() => {
                                 setOrgQuery('');

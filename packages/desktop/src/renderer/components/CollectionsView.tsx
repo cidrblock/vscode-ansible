@@ -5,7 +5,7 @@ import { collectionCrumb, parseCollectionTrail } from '../collectionPath';
 import { CapNotice, FilterBox, useListFilter } from '../filter';
 import { useTrail } from '../navigation';
 import { CollectionTree } from './CollectionTree';
-import { DrillButton } from './DrillButton';
+import { DrillLink } from './DrillLink';
 
 export interface CollectionsViewProps {
     /** Called with a label once a prompt is copied. */
@@ -104,7 +104,7 @@ export function CollectionsView(props: CollectionsViewProps): JSX.Element {
                 <>
                     <ul className="item-list">
                         {collections.items.map((item) => (
-                            <li key={item.name} className="item-row">
+                            <li key={item.name} className="item-row item-row-drill">
                                 <div className="item-main">
                                     <span className="item-title">{item.name}</span>
                                     {item.description !== undefined && (
@@ -117,7 +117,7 @@ export function CollectionsView(props: CollectionsViewProps): JSX.Element {
                                     </span>
                                 </div>
                                 <span className="item-tag">{item.version}</span>
-                                <DrillButton
+                                <DrillLink
                                     label={item.name}
                                     onOpen={() => {
                                         push(collectionCrumb(item.name));

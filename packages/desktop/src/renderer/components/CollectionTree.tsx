@@ -13,7 +13,7 @@ import { parseCollectionTrail, pluginCrumb, pluginTypeCrumb } from '../collectio
 import { CapNotice, FilterBox, useListFilter } from '../filter';
 import { useTrail } from '../navigation';
 import { CopyButton } from './CopyButton';
-import { DrillButton } from './DrillButton';
+import { DrillLink } from './DrillLink';
 import { createPluginDocBridge } from './pluginDocBridge';
 
 export interface CollectionTreeProps {
@@ -218,25 +218,24 @@ export function CollectionTree(props: CollectionTreeProps): JSX.Element {
                     <>
                         <ul className="item-list">
                             {pluginRows.items.map((item) => (
-                                <li key={item.fullName} className="item-row">
+                                <li key={item.fullName} className="item-row item-row-drill">
                                     <div className="item-main">
                                         <span className="item-title">{item.name}</span>
                                         <span className="item-description">
                                             {item.shortDescription}
                                         </span>
                                     </div>
-                                    <button
-                                        className="ghost"
-                                        onClick={() => {
-                                            push(pluginCrumb(item.fullName, pluginType));
-                                        }}
-                                    >
-                                        Docs
-                                    </button>
                                     <CopyButton
                                         label={item.fullName}
                                         prompt={item.prompt}
                                         onCopied={onCopied}
+                                    />
+                                    <DrillLink
+                                        label={item.fullName}
+                                        title={`Open docs for ${item.fullName}`}
+                                        onOpen={() => {
+                                            push(pluginCrumb(item.fullName, pluginType));
+                                        }}
                                     />
                                 </li>
                             ))}
@@ -298,14 +297,14 @@ export function CollectionTree(props: CollectionTreeProps): JSX.Element {
             ) : (
                 <ul className="item-list">
                     {types.items.map((item) => (
-                        <li key={item.type} className="item-row">
+                        <li key={item.type} className="item-row item-row-drill">
                             <div className="item-main">
                                 <span className="item-title">{item.type}</span>
                                 <span className="item-description">
                                     {String(item.count)} plugin{item.count === 1 ? '' : 's'}
                                 </span>
                             </div>
-                            <DrillButton
+                            <DrillLink
                                 label={`${collection} ${item.type}`}
                                 title={`Open ${item.type} plugins`}
                                 onOpen={() => {
