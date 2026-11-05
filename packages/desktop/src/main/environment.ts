@@ -13,7 +13,11 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { CommandService, discoverLocalEnvironments } from '@ansible/developer-services';
+import {
+    CommandService,
+    describeEnvironment,
+    discoverLocalEnvironments,
+} from '@ansible/developer-services';
 import type { LocalEnvironment } from '@ansible/developer-services';
 
 /** Tools whose presence marks an environment as the Ansible one. */
@@ -60,35 +64,52 @@ export function pickEnvironment(
  * and only recomputed when the workspace changes.
  *
  * @param workspacePath - Open workspace, used to find project environments.
+ * @param selection - Interpreter the user pinned, or null to choose automatically.
  * @returns Bin dir to prepend to PATH, or null when nothing usable was found.
  */
-export async function resolveBinDir(workspacePath: string | null): Promise<string | null> {
-    return (await resolveEnvironment(workspacePath))?.binDir ?? null;
+export async function resolveBinDir(
+    workspacePath: string | null,
+    selection: string | null = null,
+): Promise<string | null> {
+    return (await resolveEnvironment(workspacePath, selection))?.binDir ?? null;
 }
 
 const environmentCache = new Map<string, LocalEnvironment | undefined>();
 
 /**
- * Discover and pick the environment for a workspace, memoised.
+ * Describe the interpreter the user pinned, falling back to discovery.
+ *
+ * A pinned path outranks everything discovery knows, including the active
+ * interpreter, because it is the only answer the user stated explicitly. A pin
+ * that no longer exists falls through to discovery rather than failing the
+ * session: the environment may come back, and the view reports Auto meanwhile.
+ *
  * @param workspacePath - Open workspace, or null when none is open.
+ * @param selection - Interpreter the user pinned, or null to choose automatically.
  * @returns The chosen environment, or undefined when none was discovered.
  */
 async function resolveEnvironment(
     workspacePath: string | null,
+    selection: string | null,
 ): Promise<LocalEnvironment | undefined> {
-    const key = workspacePath ?? '';
+    const key = `${workspacePath ?? ''}\u0000${selection ?? ''}`;
     if (environmentCache.has(key)) {
         return environmentCache.get(key);
     }
     let picked: LocalEnvironment | undefined;
-    try {
-        picked = pickEnvironment(await discoverLocalEnvironments({ workspacePath }));
-    } catch (error: unknown) {
-        console.error(
-            `navita: environment discovery failed: ${
-                error instanceof Error ? error.message : String(error)
-            }`,
-        );
+    if (selection !== null) {
+        picked = await describeEnvironment(selection);
+    }
+    if (picked === undefined) {
+        try {
+            picked = pickEnvironment(await discoverLocalEnvironments({ workspacePath }));
+        } catch (error: unknown) {
+            console.error(
+                `navita: environment discovery failed: ${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+            );
+        }
     }
     environmentCache.set(key, picked);
     return picked;
@@ -104,7 +125,13 @@ export function resetEnvironmentCache(): void {
 /**
  * Install the resolver CommandService consults before the environment cache.
  * @param getWorkspacePath - Reads the workspace navita currently has open.
+ * @param getSelection - Reads the interpreter pinned for that workspace, if any.
  */
-export function installEnvironmentResolver(getWorkspacePath: () => string | null): void {
-    CommandService.getInstance().setBinDirResolver(() => resolveBinDir(getWorkspacePath()));
+export function installEnvironmentResolver(
+    getWorkspacePath: () => string | null,
+    getSelection: () => string | null = () => null,
+): void {
+    CommandService.getInstance().setBinDirResolver(() =>
+        resolveBinDir(getWorkspacePath(), getSelection()),
+    );
 }

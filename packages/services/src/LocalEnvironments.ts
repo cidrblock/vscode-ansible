@@ -224,6 +224,71 @@ const collectHomeLayout = async (
 };
 
 /**
+ * Manager kind implied by where an environment directory lives.
+ * @param environmentDir - Environment directory holding the interpreter.
+ * @returns Kind matching the layout the directory sits in.
+ */
+const kindForDir = (environmentDir: string): LocalEnvironmentKind => {
+    const segments = environmentDir.split(path.sep);
+    if (
+        segments.includes('miniconda3') ||
+        segments.includes('anaconda3') ||
+        segments.includes('miniforge3')
+    ) {
+        return 'conda';
+    }
+    if (environmentDir.includes(path.join('.local', 'share', 'uv', 'python'))) {
+        return 'uv';
+    }
+    if (environmentDir.includes(path.join('.pyenv', 'versions'))) {
+        return 'pyenv';
+    }
+    if (environmentDir.includes(path.join('.local', 'share', 'virtualenvs'))) {
+        return 'pipenv';
+    }
+    if (segments.includes('.virtualenvs')) {
+        return 'virtualenv';
+    }
+    return 'system';
+};
+
+/**
+ * Describe one interpreter the caller picked by path.
+ *
+ * Discovery only reaches the workspace and the well-known per-user layouts, so
+ * an interpreter a user selects by hand has to be described from its own path.
+ * @param pythonPath - Interpreter to describe.
+ * @returns The environment, or undefined when the path is not an interpreter.
+ */
+export async function describeEnvironment(
+    pythonPath: string,
+): Promise<LocalEnvironment | undefined> {
+    if (!(await isFile(pythonPath))) {
+        return undefined;
+    }
+    const binDir = path.dirname(pythonPath);
+    const environmentDir = path.dirname(binDir);
+    const version = await readVenvVersion(environmentDir);
+    const kind = version === undefined ? kindForDir(environmentDir) : 'venv';
+    const base = path.basename(environmentDir);
+    const name =
+        kind === 'system'
+            ? 'Python (system)'
+            : kind === 'venv' || kind === 'virtualenv'
+              ? `${path.basename(path.dirname(environmentDir))}/${base}`
+              : `${kind} ${base}`;
+    const resolved = version ?? versionFromName(base);
+    return {
+        name,
+        pythonPath,
+        binDir,
+        kind,
+        active: false,
+        ...(resolved === undefined ? {} : { version: resolved }),
+    };
+}
+
+/**
  * Discover Python environments without any VS Code extension.
  * @param options - Workspace, PATH, home directory and platform to scan.
  * @returns Environments with the active interpreter first; never throws.

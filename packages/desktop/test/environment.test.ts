@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
-import { pickEnvironment } from '../src/main/environment';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { pickEnvironment, resolveBinDir } from '../src/main/environment';
 import type { LocalEnvironment } from '@ansible/developer-services';
 
 interface EnvironmentOptions {
@@ -46,5 +50,50 @@ describe('pickEnvironment', () => {
 
     it('returns undefined when nothing was discovered', () => {
         expect(pickEnvironment([], capable)).toBeUndefined();
+    });
+});
+
+const cleanup: string[] = [];
+
+afterEach(() => {
+    while (cleanup.length > 0) {
+        const directory = cleanup.pop();
+        if (directory !== undefined) {
+            fs.rmSync(directory, { recursive: true, force: true });
+        }
+    }
+});
+
+/**
+ * Create a workspace holding one virtual environment.
+ * @returns Workspace path and the interpreter inside its .venv.
+ */
+function workspaceWithVenv(): { workspace: string; pythonPath: string } {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'navita-pin-'));
+    cleanup.push(workspace);
+    const bin = path.join(workspace, '.venv', 'bin');
+    fs.mkdirSync(bin, { recursive: true });
+    const pythonPath = path.join(bin, 'python3');
+    fs.writeFileSync(pythonPath, '');
+    fs.writeFileSync(path.join(workspace, '.venv', 'pyvenv.cfg'), 'version = 3.12.4\n');
+    return { workspace, pythonPath };
+}
+
+describe('resolveBinDir', () => {
+    it('uses the pinned interpreter ahead of discovery', async () => {
+        const { workspace, pythonPath } = workspaceWithVenv();
+
+        expect(await resolveBinDir(workspace, pythonPath)).toBe(path.dirname(pythonPath));
+    });
+
+    it('falls back to discovery when the pin no longer exists', async () => {
+        const { workspace } = workspaceWithVenv();
+
+        const resolved = await resolveBinDir(
+            workspace,
+            path.join(workspace, 'gone', 'bin', 'python3'),
+        );
+
+        expect(resolved).not.toBe(path.join(workspace, 'gone', 'bin'));
     });
 });

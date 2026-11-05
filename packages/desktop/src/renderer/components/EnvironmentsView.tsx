@@ -2,20 +2,30 @@ import { useCallback, useEffect, useState, type JSX } from 'react';
 
 import type { EnvironmentGroupsResult } from '../../shared/ipc';
 
+export interface EnvironmentsViewProps {
+    /** Workspace whose local virtual environments are scanned. */
+    readonly workspacePath: string | null;
+}
+
 /**
  * Environment Managers section: Python interpreters navita discovered without
  * any VS Code extension, ported from `ansibleDevToolsEnvManagers`.
+ *
+ * The interpreter marked `in use` is the one every service runs commands in.
+ * Picking another row pins it for this workspace, which respawns the MCP and
+ * language servers with the new PATH; `Automatic` returns to discovery order.
  * @param props - Component properties.
- * @param props.workspacePath - Workspace whose local virtual environments are scanned.
  * @returns The environments panel.
  */
-export function EnvironmentsView(props: { workspacePath: string | null }): JSX.Element {
+export function EnvironmentsView(props: EnvironmentsViewProps): JSX.Element {
+    const { workspacePath } = props;
     const [result, setResult] = useState<EnvironmentGroupsResult | null>(null);
+    const [busy, setBusy] = useState(false);
 
     const load = useCallback(() => {
         setResult(null);
         window.navita
-            .getEnvironments(props.workspacePath)
+            .getEnvironments(workspacePath)
             .then(setResult)
             .catch((error: unknown) => {
                 setResult({
@@ -24,21 +34,57 @@ export function EnvironmentsView(props: { workspacePath: string | null }): JSX.E
                     detail: error instanceof Error ? error.message : String(error),
                 });
             });
-    }, [props.workspacePath]);
+    }, [workspacePath]);
 
     useEffect(() => {
         load();
     }, [load]);
 
+    const choose = useCallback(
+        (pythonPath: string | null) => {
+            setBusy(true);
+            window.navita
+                .selectEnvironment(pythonPath)
+                .then(() => {
+                    load();
+                })
+                .catch((error: unknown) => {
+                    setResult({
+                        state: 'error',
+                        groups: [],
+                        detail: error instanceof Error ? error.message : String(error),
+                    });
+                })
+                .finally(() => {
+                    setBusy(false);
+                });
+        },
+        [load],
+    );
+
     const empty = result !== null && result.groups.length === 0;
+    const pinned = result?.selection ?? null;
 
     return (
         <section className="card">
             <div className="card-header">
                 <h2>Environment Managers</h2>
-                <button className="ghost" onClick={load}>
-                    Refresh
-                </button>
+                <div className="header-actions">
+                    {pinned !== null && (
+                        <button
+                            className="ghost"
+                            disabled={busy}
+                            onClick={() => {
+                                choose(null);
+                            }}
+                        >
+                            Automatic
+                        </button>
+                    )}
+                    <button className="ghost" disabled={busy} onClick={load}>
+                        Refresh
+                    </button>
+                </div>
             </div>
             {result === null ? (
                 <p className="muted">Looking for Python environments…</p>
@@ -64,8 +110,19 @@ export function EnvironmentsView(props: { workspacePath: string | null }): JSX.E
                                     {environment.version !== undefined && (
                                         <span className="item-tag">{environment.version}</span>
                                     )}
-                                    {environment.active && (
-                                        <span className="pill pill-ready">active</span>
+                                    {environment.active ? (
+                                        <span className="pill pill-ready">in use</span>
+                                    ) : (
+                                        <button
+                                            className="ghost"
+                                            disabled={busy}
+                                            title={`Run Ansible commands with ${environment.pythonPath}`}
+                                            onClick={() => {
+                                                choose(environment.pythonPath);
+                                            }}
+                                        >
+                                            Use
+                                        </button>
                                     )}
                                 </li>
                             ))}

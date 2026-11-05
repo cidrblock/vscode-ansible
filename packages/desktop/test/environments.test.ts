@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
-import { groupEnvironments } from '../src/main/environments';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { groupEnvironments, loadEnvironments } from '../src/main/environments';
 
 describe('groupEnvironments', () => {
     it('groups by manager kind in discovery order', () => {
@@ -86,5 +90,45 @@ describe('groupEnvironments', () => {
         ]);
 
         expect(groups[0]?.environments[0]).not.toHaveProperty('version');
+    });
+});
+
+const cleanup: string[] = [];
+
+afterEach(() => {
+    while (cleanup.length > 0) {
+        const directory = cleanup.pop();
+        if (directory !== undefined) {
+            fs.rmSync(directory, { recursive: true, force: true });
+        }
+    }
+});
+
+describe('loadEnvironments', () => {
+    it('lists the pinned interpreter first and reports it as in use', async () => {
+        const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'navita-list-'));
+        cleanup.push(workspace);
+        const bin = path.join(workspace, 'manual-env', 'bin');
+        fs.mkdirSync(bin, { recursive: true });
+        const pythonPath = path.join(bin, 'python3');
+        fs.writeFileSync(pythonPath, '');
+        fs.writeFileSync(path.join(workspace, 'manual-env', 'pyvenv.cfg'), 'version = 3.12.1\n');
+
+        const result = await loadEnvironments(workspace, pythonPath);
+        const listed = result.groups.flatMap((group) => group.environments);
+
+        expect(result.selection).toBe(pythonPath);
+        expect(listed[0]?.pythonPath).toBe(pythonPath);
+        expect(listed[0]?.active).toBe(true);
+        expect(listed.filter((entry) => entry.active)).toHaveLength(1);
+    });
+
+    it('reports automatic selection when nothing is pinned', async () => {
+        const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'navita-list-'));
+        cleanup.push(workspace);
+
+        const result = await loadEnvironments(workspace, null);
+
+        expect(result.selection).toBeNull();
     });
 });

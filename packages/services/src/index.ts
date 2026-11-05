@@ -11,6 +11,7 @@ export {
     type McpToolCategoryId,
 } from '@ansible/common';
 export {
+    describeEnvironment,
     discoverLocalEnvironments,
     type DiscoveryOptions,
     type LocalEnvironment,

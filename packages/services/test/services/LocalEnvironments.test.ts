@@ -4,7 +4,7 @@ import * as path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { discoverLocalEnvironments } from '../../src/LocalEnvironments';
+import { describeEnvironment, discoverLocalEnvironments } from '../../src/LocalEnvironments';
 
 const cleanup: string[] = [];
 
@@ -159,5 +159,47 @@ describe('discoverLocalEnvironments', () => {
         });
 
         expect(environments).toEqual([]);
+    });
+});
+
+describe('describeEnvironment', () => {
+    it('describes a virtual environment from its interpreter path', async () => {
+        const pythonPath = makeEnvironment(path.join(tempDir('project'), '.venv'), '3.12.4');
+
+        const environment = await describeEnvironment(pythonPath);
+
+        expect(environment).toMatchObject({
+            kind: 'venv',
+            version: '3.12.4',
+            pythonPath,
+            binDir: path.dirname(pythonPath),
+            active: false,
+        });
+    });
+
+    it('labels a venv outside the scanned layouts by its parent directory', async () => {
+        const parent = tempDir('elsewhere');
+        const pythonPath = makeEnvironment(path.join(parent, 'custom-env'), '3.11.9');
+
+        const environment = await describeEnvironment(pythonPath);
+
+        expect(environment?.name).toBe(`${path.basename(parent)}/custom-env`);
+        expect(environment?.kind).toBe('venv');
+    });
+
+    it('recognises a uv-managed interpreter', async () => {
+        const home = tempDir('uvhome');
+        const pythonPath = makeEnvironment(
+            path.join(home, '.local', 'share', 'uv', 'python', 'cpython-3.13.1'),
+        );
+
+        const environment = await describeEnvironment(pythonPath);
+
+        expect(environment?.kind).toBe('uv');
+        expect(environment?.version).toBe('3.13.1');
+    });
+
+    it('returns undefined when the path is not an interpreter', async () => {
+        expect(await describeEnvironment(path.join(tempDir('missing'), 'python3'))).toBeUndefined();
     });
 });

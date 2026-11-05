@@ -517,3 +517,9 @@ button {
     display: block;
     overflow-wrap: anywhere;
 }
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}

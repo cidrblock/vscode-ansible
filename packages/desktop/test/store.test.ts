@@ -48,6 +48,20 @@ describe('parseState', () => {
     it('falls back to the default section for unknown ids', () => {
         expect(parseState({ activeSection: 'nope' }).activeSection).toBe('dev-tools');
     });
+
+    it('keeps pinned interpreters and drops malformed pairs', () => {
+        const state = parseState({
+            selectedEnvironments: {
+                '/work/project': '/work/project/.venv/bin/python3',
+                '/work/bad': 7,
+                '': '/work/empty/bin/python3',
+            },
+        });
+
+        expect(state.selectedEnvironments).toEqual({
+            '/work/project': '/work/project/.venv/bin/python3',
+        });
+    });
 });
 
 describe('StateStore', () => {

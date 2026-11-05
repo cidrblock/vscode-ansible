@@ -18,6 +18,7 @@ export const IPC = {
     testConnection: 'navita:test-connection',
     getDevTools: 'navita:get-dev-tools',
     getEnvironments: 'navita:get-environments',
+    selectEnvironment: 'navita:select-environment',
     getTools: 'navita:get-tools',
     getCollections: 'navita:get-collections',
     getExecutionEnvironments: 'navita:get-execution-environments',
@@ -222,6 +223,8 @@ export interface EnvironmentGroup {
 export interface EnvironmentGroupsResult {
     readonly state: 'ready' | 'error';
     readonly groups: readonly EnvironmentGroup[];
+    /** Interpreter the user pinned for this workspace, or null for automatic. */
+    readonly selection?: string | null;
     readonly detail?: string;
 }
 
@@ -379,6 +382,7 @@ export interface NavitaBridge {
     testConnection(): Promise<AppState>;
     getDevTools(): Promise<DevToolsResult>;
     getEnvironments(workspacePath: string | null): Promise<EnvironmentGroupsResult>;
+    selectEnvironment(pythonPath: string | null): Promise<AppState>;
     getTools(): Promise<ToolsResult>;
     getSkills(): Promise<SkillsResult>;
     copyText(text: string): Promise<void>;

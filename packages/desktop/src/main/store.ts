@@ -17,6 +17,8 @@ export interface PersistedState {
     recents: WorkspaceEntry[];
     activeSection: SectionId;
     lastWorkspace: string | null;
+    /** Interpreter the user pinned per workspace path, overriding discovery. */
+    selectedEnvironments: Record<string, string>;
 }
 
 export const DEFAULT_STATE: PersistedState = {
@@ -24,6 +26,7 @@ export const DEFAULT_STATE: PersistedState = {
     recents: [],
     activeSection: 'dev-tools',
     lastWorkspace: null,
+    selectedEnvironments: {},
 };
 
 /**
@@ -68,6 +71,7 @@ export function parseState(raw: unknown): PersistedState {
         recents?: unknown;
         activeSection?: unknown;
         lastWorkspace?: unknown;
+        selectedEnvironments?: unknown;
     };
     const recents = Array.isArray(candidate.recents)
         ? candidate.recents
@@ -81,7 +85,32 @@ export function parseState(raw: unknown): PersistedState {
         typeof candidate.lastWorkspace === 'string' && candidate.lastWorkspace.length > 0
             ? candidate.lastWorkspace
             : null;
-    return { version: STATE_VERSION, recents, activeSection, lastWorkspace };
+    return {
+        version: STATE_VERSION,
+        recents,
+        activeSection,
+        lastWorkspace,
+        selectedEnvironments: parseSelections(candidate.selectedEnvironments),
+    };
+}
+
+/**
+ * Keep the pinned interpreters that survived a round trip through JSON.
+ *
+ * @param raw - Value from the parsed state file.
+ * @returns Workspace path to interpreter path, dropping malformed entries.
+ */
+function parseSelections(raw: unknown): Record<string, string> {
+    if (typeof raw !== 'object' || raw === null) {
+        return {};
+    }
+    const selections: Record<string, string> = {};
+    for (const [workspacePath, pythonPath] of Object.entries(raw)) {
+        if (workspacePath.length > 0 && typeof pythonPath === 'string' && pythonPath.length > 0) {
+            selections[workspacePath] = pythonPath;
+        }
+    }
+    return selections;
 }
 
 /** Reader/writer for navita's JSON state file. */

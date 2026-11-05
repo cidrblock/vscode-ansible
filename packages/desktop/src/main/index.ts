@@ -181,6 +181,15 @@ function toElectronMenuItem(item: MenuItemSpec): MenuItemConstructorOptions {
 }
 
 /**
+ * Interpreter the user pinned for the open workspace.
+ *
+ * @returns Absolute interpreter path, or null when the workspace is automatic.
+ */
+function selectedEnvironment(): string | null {
+    return workspace === null ? null : (persisted.selectedEnvironments[workspace.path] ?? null);
+}
+
+/**
  * Turn a chosen folder into the active workspace and probe its servers.
  * @param candidate - Directory proposed by the picker or a recent entry.
  * @returns State after the servers have been probed.
@@ -203,7 +212,7 @@ async function activateWorkspace(candidate: string): Promise<AppState> {
     mainWindow?.setTitle(`${APP_NAME} — ${workspace.path}`);
     broadcast();
 
-    const binDir = await resolveBinDir(workspace.path);
+    const binDir = await resolveBinDir(workspace.path, selectedEnvironment());
     const specs = spawnSpecs(workspace.path, binDir);
     const statuses = await probeServers(specs.mcp, specs.lsp, workspace.path);
     mcpStatus = statuses.mcp;
@@ -365,12 +374,33 @@ function registerIpc(): void {
     });
     ipcMain.handle(IPC.getDevTools, () => loadDevTools());
     ipcMain.handle(IPC.getEnvironments, (_event, workspacePath: string | null) =>
-        loadEnvironments(workspacePath),
+        loadEnvironments(
+            workspacePath,
+            workspacePath === null ? null : (persisted.selectedEnvironments[workspacePath] ?? null),
+        ),
     );
+    ipcMain.handle(IPC.selectEnvironment, async (_event, pythonPath: unknown) => {
+        if (workspace === null) {
+            return currentState();
+        }
+        const selections = Object.entries(persisted.selectedEnvironments).filter(
+            ([candidate]) => candidate !== workspace?.path,
+        );
+        persisted.selectedEnvironments = Object.fromEntries(
+            typeof pythonPath === 'string' && pythonPath.length > 0
+                ? [...selections, [workspace.path, pythonPath]]
+                : selections,
+        );
+        store.save(persisted);
+        // The servers were spawned with the old PATH, so switching interpreters
+        // means respawning them, not just invalidating a cache.
+        return activateWorkspace(workspace.path);
+    });
     ipcMain.handle(IPC.getTools, async () => {
         const scripts = serverScripts();
         const cwd = workspace?.path ?? process.cwd();
-        const binDir = workspace === null ? null : await resolveBinDir(workspace.path);
+        const binDir =
+            workspace === null ? null : await resolveBinDir(workspace.path, selectedEnvironment());
         return loadTools(
             serverSpawnSpec(
                 process.execPath,
@@ -426,7 +456,10 @@ function createWindow(): void {
 app.setName(APP_NAME);
 
 void app.whenReady().then(() => {
-    installEnvironmentResolver(() => workspace?.path ?? null);
+    installEnvironmentResolver(
+        () => workspace?.path ?? null,
+        () => selectedEnvironment(),
+    );
     store = new StateStore(path.join(app.getPath('userData'), 'state.json'));
     persisted = store.load();
     registerIpc();

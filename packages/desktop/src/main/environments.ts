@@ -3,7 +3,11 @@
  * a VS Code extension, grouped the way the extension's tree groups them.
  */
 
-import { discoverLocalEnvironments, type LocalEnvironment } from '@ansible/developer-services';
+import {
+    describeEnvironment,
+    discoverLocalEnvironments,
+    type LocalEnvironment,
+} from '@ansible/developer-services';
 
 import { pickEnvironment } from './environment';
 
@@ -57,22 +61,42 @@ export function groupEnvironments(environments: readonly LocalEnvironment[]): En
 
 /**
  * Discover the Python environments available to the open workspace.
+ *
+ * A pinned interpreter is described from its own path and listed first, so a
+ * venv outside the scanned layouts still appears in the view that selected it.
+ *
  * @param workspacePath - Workspace to scan for local virtual environments.
+ * @param selection - Interpreter the user pinned, or null for automatic choice.
  * @returns Grouped environments, or the failure detail; never throws.
  */
 export async function loadEnvironments(
     workspacePath: string | null,
+    selection: string | null = null,
 ): Promise<EnvironmentGroupsResult> {
     try {
         const environments = await discoverLocalEnvironments({ workspacePath });
-        const chosen = pickEnvironment(environments);
+        const pinned = selection === null ? undefined : await describeEnvironment(selection);
+        const listed =
+            pinned === undefined
+                ? environments
+                : [
+                      pinned,
+                      ...environments.filter(
+                          (environment) => environment.pythonPath !== pinned.pythonPath,
+                      ),
+                  ];
+        const chosen = pinned ?? pickEnvironment(environments);
         // Discovery marks whatever is on PATH as active; the view is more useful
         // when it marks the environment navita will actually run commands in.
-        const marked = environments.map((environment) => ({
+        const marked = listed.map((environment) => ({
             ...environment,
             active: environment === chosen,
         }));
-        return { state: 'ready', groups: groupEnvironments(marked) };
+        return {
+            state: 'ready',
+            groups: groupEnvironments(marked),
+            selection: pinned?.pythonPath ?? null,
+        };
     } catch (error: unknown) {
         return {
             state: 'error',
