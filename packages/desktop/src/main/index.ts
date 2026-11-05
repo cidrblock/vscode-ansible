@@ -20,6 +20,7 @@ import {
     type McpStatus,
     type SectionId,
     type ServerStatus,
+    type ThemeId,
     type WorkspaceEntry,
 } from '../shared/ipc';
 import { buildMenuTemplate, type MenuContext, type MenuItemSpec } from './menu';
@@ -42,7 +43,7 @@ import { loadSkills } from './skills';
 import { invalidateToolCache, loadTools } from './tools';
 import { probeServers, serverEnv, serverSpawnSpec, type SpawnSpec } from './servers';
 import { buildSnippet } from './snippet';
-import { StateStore, type PersistedState } from './store';
+import { isThemeId, StateStore, type PersistedState } from './store';
 import { isDirectory, pushRecent, toWorkspaceEntry } from './workspaces';
 
 const APP_NAME = 'navita';
@@ -127,7 +128,24 @@ function currentState(): AppState {
         activeSection: persisted.activeSection,
         mcp: mcpStatus,
         lsp: lspStatus,
+        theme: persisted.theme,
     };
+}
+
+/**
+ * Persist a theme choice and push it to the renderer and the menu.
+ *
+ * Persisting matters beyond restart: the menu's radio group is rebuilt from
+ * the stored value, so the check mark survives a reload of the window.
+ *
+ * @param theme - Theme the user picked in the View menu or the UI.
+ * @returns The state snapshot after the change.
+ */
+function setTheme(theme: ThemeId): AppState {
+    persisted.theme = theme;
+    store.save(persisted);
+    broadcast();
+    return currentState();
 }
 
 /**
@@ -148,6 +166,7 @@ function refreshMenu(): void {
         hasWorkspace: workspace !== null,
         recents: persisted.recents,
         activeSection: persisted.activeSection,
+        theme: persisted.theme,
     };
     const template = buildMenuTemplate(context).map(toElectronMenuItem);
     Menu.setApplicationMenu(Menu.buildFromTemplate(template));
@@ -365,6 +384,11 @@ async function handleAction(action: string, actionArg?: string): Promise<void> {
                 await activateWorkspace(workspace.path);
             }
             return;
+        case 'set-theme':
+            if (actionArg !== undefined && isThemeId(actionArg)) {
+                setTheme(actionArg);
+            }
+            return;
         case 'about':
             void dialog.showMessageBox({
                 type: 'info',
@@ -392,6 +416,9 @@ async function handleAction(action: string, actionArg?: string): Promise<void> {
  */
 function registerIpc(): void {
     ipcMain.handle(IPC.getState, () => currentState());
+    ipcMain.handle(IPC.setTheme, (_event, candidate: string) =>
+        isThemeId(candidate) ? setTheme(candidate) : currentState(),
+    );
     ipcMain.handle(IPC.openWorkspace, () => pickWorkspace());
     ipcMain.handle(IPC.activateWorkspace, (_event, candidate: string) =>
         activateWorkspace(candidate),

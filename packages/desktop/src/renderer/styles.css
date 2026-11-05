@@ -28,6 +28,39 @@
     }
 }
 
+/*
+ * Explicit choices. `system` leaves no data-theme attribute, so the two blocks
+ * above stay in charge; these win over the media query because the attribute
+ * selector is more specific.
+ */
+:root[data-theme='navita-dark'] {
+    --bg: #1e1e1e;
+    --bg-raised: #252526;
+    --bg-input: #2d2d30;
+    --fg: #d4d4d4;
+    --fg-muted: #9d9d9d;
+    --border: #3c3c3c;
+    --accent: #5aa0e6;
+    --ok: #4ec9b0;
+    --warn: #dcdcaa;
+    --err: #f48771;
+    color-scheme: dark;
+}
+
+:root[data-theme='navita-light'] {
+    --bg: #f7f7f7;
+    --bg-raised: #ffffff;
+    --bg-input: #ececec;
+    --fg: #1f1f1f;
+    --fg-muted: #6b6b6b;
+    --border: #d9d9d9;
+    --accent: #1a63b0;
+    --ok: #157f63;
+    --warn: #8a6d00;
+    --err: #b32020;
+    color-scheme: light;
+}
+
 * {
     box-sizing: border-box;
 }
@@ -47,6 +80,15 @@ body {
         -apple-system,
         'Segoe UI',
         sans-serif;
+}
+
+select {
+    font: inherit;
+    padding: 3px 6px;
+    color: var(--fg);
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 5px;
 }
 
 button {
@@ -167,7 +209,7 @@ button {
 }
 
 .nav-group-header:hover {
-    background: var(--bg-input);
+    background: var(--nav-hover, var(--bg-input));
 }
 
 .nav-list {
@@ -185,11 +227,11 @@ button {
 }
 
 .nav-item:hover {
-    background: var(--bg-input);
+    background: var(--nav-hover, var(--bg-input));
 }
 
 .nav-item-active {
-    background: var(--bg-input);
+    background: var(--nav-hover, var(--bg-input));
     font-weight: 600;
     box-shadow: inset 2px 0 0 var(--accent);
 }
@@ -251,7 +293,7 @@ button {
 }
 
 .link:hover {
-    background: var(--bg-input);
+    background: var(--nav-hover, var(--bg-input));
 }
 
 .card {
@@ -508,10 +550,10 @@ button {
 }
 
 .command-template {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
     font-size: 11.5px;
     color: var(--fg-muted);
-    background: var(--bg-input);
+    background: var(--code-bg, var(--bg-input));
     border-radius: 4px;
     padding: 3px 6px;
     display: block;
@@ -537,7 +579,7 @@ button {
 }
 
 .nav-workspace:hover:not(:disabled) {
-    background: var(--bg-input);
+    background: var(--nav-hover, var(--bg-input));
 }
 
 .nav-workspace:disabled {
@@ -592,7 +634,7 @@ button {
 }
 
 .nav-action:hover {
-    background: var(--bg-input);
+    background: var(--nav-hover, var(--bg-input));
 }
 
 .nav-shortcut {
@@ -701,6 +743,13 @@ button {
     margin: 0 0 4px;
     font-size: 14px;
     font-weight: 600;
+}
+
+.overview-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 8px;
 }
 
 .overview-path {

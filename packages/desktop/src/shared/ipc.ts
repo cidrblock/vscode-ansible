@@ -35,6 +35,7 @@ export const IPC = {
     openPath: 'navita:open-path',
     navigateBack: 'navita:navigate-back',
     installDevTools: 'navita:install-dev-tools',
+    setTheme: 'navita:set-theme',
 } as const;
 
 /** Sidebar sections, in the order they are ported from the extension views. */
@@ -51,6 +52,28 @@ export type SectionId =
     | 'collection-sources'
     | 'harness-setup'
     | 'services';
+
+/** Colour schemes the app can be asked to wear. */
+export type ThemeId = 'system' | 'navita-light' | 'navita-dark' | 'rhdh-light' | 'rhdh-dark';
+
+export interface Theme {
+    readonly id: ThemeId;
+    readonly label: string;
+}
+
+/**
+ * Themes in menu order.
+ *
+ * `system` keeps navita's own palette and follows the OS light/dark setting;
+ * the explicit entries pin one palette regardless of the desktop preference.
+ */
+export const THEMES: readonly Theme[] = [
+    { id: 'system', label: 'Follow System' },
+    { id: 'navita-light', label: 'navita Light' },
+    { id: 'navita-dark', label: 'navita Dark' },
+    { id: 'rhdh-light', label: 'Red Hat Light' },
+    { id: 'rhdh-dark', label: 'Red Hat Dark' },
+];
 
 /** Groups the sidebar collapses as a unit. */
 export type SectionGroupId = 'home' | 'environment' | 'ai' | 'content';
@@ -200,6 +223,7 @@ export interface AppState {
     readonly activeSection: SectionId;
     readonly mcp: McpStatus;
     readonly lsp: ServerStatus;
+    readonly theme: ThemeId;
 }
 
 /** Actions the native menu can trigger, kept serializable for testability. */
@@ -214,6 +238,7 @@ export type MenuAction =
     | { readonly id: 'back' }
     | { readonly id: 'copy-snippet'; readonly harness: HarnessId }
     | { readonly id: 'test-connection' }
+    | { readonly id: 'set-theme'; readonly theme: ThemeId }
     | { readonly id: 'about' }
     | { readonly id: 'reload' }
     | { readonly id: 'devtools' }
@@ -427,6 +452,7 @@ export interface NavitaBridge {
     rescanWorkspace(): Promise<AppState>;
     copySnippet(harness: HarnessId): Promise<string>;
     testConnection(): Promise<AppState>;
+    setTheme(theme: ThemeId): Promise<AppState>;
     getDevTools(): Promise<DevToolsResult>;
     installDevTools(): Promise<DevToolsInstallResult>;
     getEnvironments(workspacePath: string | null): Promise<EnvironmentGroupsResult>;

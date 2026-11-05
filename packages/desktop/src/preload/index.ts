@@ -25,6 +25,7 @@ import {
     type HarnessId,
     type NavitaBridge,
     type SectionId,
+    type ThemeId,
 } from '../shared/ipc';
 
 const bridge: NavitaBridge = {
@@ -39,6 +40,7 @@ const bridge: NavitaBridge = {
     copySnippet: (harness: HarnessId) =>
         ipcRenderer.invoke(IPC.copySnippet, harness) as Promise<string>,
     testConnection: () => ipcRenderer.invoke(IPC.testConnection) as Promise<AppState>,
+    setTheme: (theme: ThemeId) => ipcRenderer.invoke(IPC.setTheme, theme) as Promise<AppState>,
     getDevTools: () => ipcRenderer.invoke(IPC.getDevTools) as Promise<DevToolsResult>,
     installDevTools: () =>
         ipcRenderer.invoke(IPC.installDevTools) as Promise<DevToolsInstallResult>,

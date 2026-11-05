@@ -316,6 +316,23 @@ if (process.exitCode !== 1) {
         console.log(`PASS  dev-tools        ${devTools.packages.length} packages (${names.join(', ')}…)`);
     }
 
+    const rendererAssets = path.join(DIST, 'renderer', 'assets');
+    const cssText = fs
+        .readdirSync(rendererAssets)
+        .filter((name) => name.endsWith('.css'))
+        .map((name) => fs.readFileSync(path.join(rendererAssets, name), 'utf8'))
+        .join('\n');
+    const themeIds = ['navita-light', 'navita-dark', 'rhdh-light', 'rhdh-dark'];
+    const missingThemes = themeIds.filter((id) => !cssText.includes(id));
+    const fontCount = fs.readdirSync(rendererAssets).filter((name) => name.endsWith('.woff2')).length;
+    if (missingThemes.length === 0 && fontCount > 0) {
+        console.log(`PASS  theme           ${themeIds.join(', ')} with ${fontCount} bundled font(s)`);
+    } else {
+        fail(
+            `theme           missing ${missingThemes.join(', ') || '(palettes ok)'}; ${fontCount} bundled font(s)`,
+        );
+    }
+
     const installerModule = await bundleModule('installer.ts', 'installer');
     const install = installerModule.installCommand('/venv/bin/python3');
     console.log(

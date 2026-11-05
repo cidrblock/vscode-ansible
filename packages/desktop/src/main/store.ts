@@ -7,7 +7,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { SECTIONS, type SectionId, type WorkspaceEntry } from '../shared/ipc';
+import { SECTIONS, THEMES, type SectionId, type ThemeId, type WorkspaceEntry } from '../shared/ipc';
 import { toWorkspaceEntry } from './workspaces';
 
 const STATE_VERSION = 1;
@@ -19,6 +19,8 @@ export interface PersistedState {
     lastWorkspace: string | null;
     /** Interpreter the user pinned per workspace path, overriding discovery. */
     selectedEnvironments: Record<string, string>;
+    /** Palette the app wears; `system` follows the desktop preference. */
+    theme: ThemeId;
 }
 
 export const DEFAULT_STATE: PersistedState = {
@@ -27,6 +29,7 @@ export const DEFAULT_STATE: PersistedState = {
     activeSection: 'overview',
     lastWorkspace: null,
     selectedEnvironments: {},
+    theme: 'system',
 };
 
 /**
@@ -37,6 +40,16 @@ export const DEFAULT_STATE: PersistedState = {
  */
 function isSectionId(value: unknown): value is SectionId {
     return SECTIONS.some((section) => section.id === value);
+}
+
+/**
+ * Check whether a value names a known theme.
+ *
+ * @param value - Candidate value from parsed JSON.
+ * @returns True when the value is one of the THEMES ids.
+ */
+export function isThemeId(value: unknown): value is ThemeId {
+    return THEMES.some((theme) => theme.id === value);
 }
 
 /**
@@ -72,6 +85,7 @@ export function parseState(raw: unknown): PersistedState {
         activeSection?: unknown;
         lastWorkspace?: unknown;
         selectedEnvironments?: unknown;
+        theme?: unknown;
     };
     const recents = Array.isArray(candidate.recents)
         ? candidate.recents
@@ -91,6 +105,7 @@ export function parseState(raw: unknown): PersistedState {
         activeSection,
         lastWorkspace,
         selectedEnvironments: parseSelections(candidate.selectedEnvironments),
+        theme: isThemeId(candidate.theme) ? candidate.theme : DEFAULT_STATE.theme,
     };
 }
 

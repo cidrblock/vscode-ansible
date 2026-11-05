@@ -33,6 +33,12 @@ describe('parseState', () => {
         expect(parseState('nope')).toEqual(DEFAULT_STATE);
     });
 
+    it('defaults the theme to system and keeps a known one', () => {
+        expect(parseState({}).theme).toBe('system');
+        expect(parseState({ theme: 'rhdh-dark' }).theme).toBe('rhdh-dark');
+        expect(parseState({ theme: 'neon' }).theme).toBe('system');
+    });
+
     it('drops malformed recents but keeps valid ones', () => {
         const state = parseState({
             recents: [{ path: '/tmp/ok', openedAt: 5 }, { path: 42 }, null],

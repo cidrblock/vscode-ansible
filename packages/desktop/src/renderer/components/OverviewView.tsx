@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState, type JSX } from 'react';
 
-import type { AppState, DevToolsInstallResult, DevToolsResult, SectionId } from '../../shared/ipc';
+import {
+    THEMES,
+    type AppState,
+    type DevToolsInstallResult,
+    type DevToolsResult,
+    type SectionId,
+    type ThemeId,
+} from '../../shared/ipc';
 import { StatusPill } from './StatusPill';
 
 export interface OverviewViewProps {
@@ -207,6 +214,31 @@ export function OverviewView(props: OverviewViewProps): JSX.Element {
                 <p className="muted">
                     navita ships the MCP server. Copy a snippet for Cursor, Claude Code, Codex or VS
                     Code.
+                </p>
+            </section>
+
+            <section className="card">
+                <div className="card-header">
+                    <h2>Appearance</h2>
+                </div>
+                <label className="overview-field">
+                    <span>Theme</span>
+                    <select
+                        value={state.theme}
+                        onChange={(event) => {
+                            void window.navita.setTheme(event.target.value as ThemeId);
+                        }}
+                    >
+                        {THEMES.map((theme) => (
+                            <option key={theme.id} value={theme.id}>
+                                {theme.label}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+                <p className="muted">
+                    Red Hat themes take the RHDH palette and typography. Follow System keeps
+                    navita&apos;s own colours and tracks the desktop setting.
                 </p>
             </section>
         </>

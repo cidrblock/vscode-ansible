@@ -68,6 +68,17 @@ export function App(): JSX.Element {
         };
     }, []);
 
+    // `system` removes the attribute so the prefers-color-scheme blocks in
+    // styles.css decide; every other theme pins one palette.
+    const theme = state?.theme;
+    useEffect(() => {
+        if (theme === undefined || theme === 'system') {
+            document.documentElement.removeAttribute('data-theme');
+            return;
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+    }, [theme]);
+
     useEffect(() => {
         if (notice === null) {
             return undefined;

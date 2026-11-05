@@ -5,6 +5,7 @@ import '@ansible/ui/styles/tokens.css';
 
 import { App } from './App';
 import './styles.css';
+import './theme-rhdh.css';
 
 const container = document.getElementById('root');
 if (container === null) {

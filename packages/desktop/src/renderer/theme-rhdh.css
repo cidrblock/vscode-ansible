@@ -1,0 +1,172 @@
+/*
+ * Red Hat theme for navita.
+ *
+ * Values come from the RHDH theme package itself
+ * (@red-hat-developer-hub/backstage-plugin-theme 1.5.1): page inset #f2f2f2,
+ * white cards bordered #c7c7c7, text #151515 / #6a6e73, and a dark variant
+ * with #151515 chrome over #292929 content. Red Hat Text/Display/Mono match
+ * the typography the theme sets.
+ *
+ * The accent is Red Hat brand red. RHDH 2.x itself uses the PatternFly 6
+ * interactive blue (#0066cc, #92c5f9 on dark); swapping the two --accent
+ * values below is the whole difference if strict RHDH parity is wanted.
+ */
+
+@font-face {
+    font-family: 'Red Hat Text';
+    src: url('./fonts/red-hat-text-latin-400-normal.woff2') format('woff2');
+    font-weight: 400;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'Red Hat Text';
+    src: url('./fonts/red-hat-text-latin-500-normal.woff2') format('woff2');
+    font-weight: 500;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'Red Hat Text';
+    src: url('./fonts/red-hat-text-latin-600-normal.woff2') format('woff2');
+    font-weight: 600;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'Red Hat Text';
+    src: url('./fonts/red-hat-text-latin-700-normal.woff2') format('woff2');
+    font-weight: 700;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'Red Hat Display';
+    src: url('./fonts/red-hat-display-latin-400-normal.woff2') format('woff2');
+    font-weight: 400;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'Red Hat Display';
+    src: url('./fonts/red-hat-display-latin-600-normal.woff2') format('woff2');
+    font-weight: 600;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'Red Hat Mono';
+    src: url('./fonts/red-hat-mono-latin-400-normal.woff2') format('woff2');
+    font-weight: 400;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'Red Hat Mono';
+    src: url('./fonts/red-hat-mono-latin-500-normal.woff2') format('woff2');
+    font-weight: 500;
+    font-display: swap;
+}
+
+/* ---- palettes ----------------------------------------------------------- */
+
+:root[data-theme='rhdh-light'] {
+    --bg: #f2f2f2;
+    --bg-raised: #ffffff;
+    --bg-input: #ffffff;
+    --nav-hover: #ffffff;
+    --code-bg: #f2f2f2;
+    --fg: #151515;
+    --fg-muted: #6a6e73;
+    --border: #c7c7c7;
+    --accent: #ee0000;
+    --accent-hover: #be0000;
+    --ok: #3d7317;
+    --warn: #c05600;
+    --err: #b1380b;
+    --mono: 'Red Hat Mono', ui-monospace, monospace;
+    color-scheme: light;
+}
+
+:root[data-theme='rhdh-dark'] {
+    --bg: #151515;
+    --bg-raised: #292929;
+    --bg-input: #36373a;
+    --nav-hover: #292929;
+    --code-bg: #151515;
+    --fg: #ffffff;
+    --fg-muted: #c7c7c7;
+    --border: #515151;
+    --accent: #ee0000;
+    --accent-hover: #be0000;
+    --ok: #87bb62;
+    --warn: #ffcc17;
+    --err: #ff5252;
+    --mono: 'Red Hat Mono', ui-monospace, monospace;
+    color-scheme: dark;
+}
+
+/* ---- typography --------------------------------------------------------- */
+
+:root[data-theme^='rhdh'] body {
+    font-family: 'Red Hat Text', 'Red Hat Display', system-ui, sans-serif;
+    font-size: 13.5px;
+    line-height: 1.5;
+}
+
+:root[data-theme^='rhdh'] h1,
+:root[data-theme^='rhdh'] h2,
+:root[data-theme^='rhdh'] .overview-title,
+:root[data-theme^='rhdh'] .pane > h1 {
+    font-family: 'Red Hat Display', 'Red Hat Text', sans-serif;
+    letter-spacing: -0.01em;
+}
+
+:root[data-theme^='rhdh'] .command-template,
+:root[data-theme^='rhdh'] code,
+:root[data-theme^='rhdh'] pre {
+    font-family: 'Red Hat Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ---- surfaces ----------------------------------------------------------- */
+
+/* Chrome (app bar, sidebar, status bar) sits on the page inset colour. */
+:root[data-theme^='rhdh'] .topbar,
+:root[data-theme^='rhdh'] .statusbar,
+:root[data-theme^='rhdh'] .sidebar {
+    background: var(--bg);
+}
+
+:root[data-theme='rhdh-light'] .topbar {
+    box-shadow: 0 1px 2px rgba(3, 3, 3, 0.06);
+}
+
+:root[data-theme^='rhdh'] .card {
+    background: var(--bg-raised);
+    border-radius: 8px;
+}
+
+:root[data-theme='rhdh-light'] .card {
+    box-shadow:
+        0 0.25rem 0.5rem 0 rgba(3, 3, 3, 0.12),
+        0 0 0.25rem 0 rgba(3, 3, 3, 0.06);
+}
+
+:root[data-theme^='rhdh'] .item-row {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
+/* ---- controls ----------------------------------------------------------- */
+
+:root[data-theme^='rhdh'] .chip,
+:root[data-theme^='rhdh'] .ghost,
+:root[data-theme^='rhdh'] .primary,
+:root[data-theme^='rhdh'] .link,
+:root[data-theme^='rhdh'] .icon-button,
+:root[data-theme^='rhdh'] select,
+:root[data-theme^='rhdh'] .install-output {
+    border-radius: 3px;
+}
+
+:root[data-theme^='rhdh'] .primary {
+    padding: 7px 16px;
+    letter-spacing: 0.01em;
+}
+
+:root[data-theme^='rhdh'] .primary:hover {
+    background: var(--accent-hover);
+}

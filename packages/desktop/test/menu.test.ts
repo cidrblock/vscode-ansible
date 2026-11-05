@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildMenuTemplate, type MenuContext, type MenuItemSpec } from '../src/main/menu';
-import { SECTIONS } from '../src/shared/ipc';
+import { SECTIONS, THEMES } from '../src/shared/ipc';
 
 const baseContext: MenuContext = {
     appName: 'navita',
@@ -9,6 +9,7 @@ const baseContext: MenuContext = {
     hasWorkspace: false,
     recents: [],
     activeSection: 'dev-tools',
+    theme: 'system',
 };
 
 /**
@@ -96,5 +97,24 @@ describe('buildMenuTemplate', () => {
         const items = menu({ isMac: true });
         expect(items[0].label).toBe('navita');
         expect(find(items, 'Quit')).toBeUndefined();
+    });
+});
+
+describe('theme menu', () => {
+    it('offers one radio entry per theme and checks the active one', () => {
+        const theme = find(menu({}), 'Theme');
+        expect(theme?.submenu).toBeDefined();
+        const entries = theme?.submenu ?? [];
+        expect(entries).toHaveLength(THEMES.length);
+        expect(entries.every((entry) => entry.type === 'radio')).toBe(true);
+        expect(entries.every((entry) => entry.action === 'set-theme')).toBe(true);
+        expect(entries.map((entry) => entry.actionArg)).toEqual(THEMES.map((entry) => entry.id));
+    });
+
+    it('checks exactly the stored theme', () => {
+        const entries = find(menu({ theme: 'rhdh-dark' }), 'Theme')?.submenu ?? [];
+        expect(entries.filter((entry) => entry.checked).map((entry) => entry.actionArg)).toEqual([
+            'rhdh-dark',
+        ]);
     });
 });

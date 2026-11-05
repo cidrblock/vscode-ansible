@@ -9,15 +9,17 @@ import {
     HARNESSES,
     SECTIONS,
     SECTION_GROUPS,
+    THEMES,
     type MenuAction,
     type Section,
     type SectionId,
+    type ThemeId,
     type WorkspaceEntry,
 } from '../shared/ipc';
 
 export interface MenuItemSpec {
     label?: string;
-    type?: 'normal' | 'separator' | 'submenu' | 'checkbox';
+    type?: 'normal' | 'separator' | 'submenu' | 'checkbox' | 'radio';
     role?: string;
     accelerator?: string;
     enabled?: boolean;
@@ -34,6 +36,7 @@ export interface MenuContext {
     readonly hasWorkspace: boolean;
     readonly recents: readonly WorkspaceEntry[];
     readonly activeSection: SectionId;
+    readonly theme: ThemeId;
 }
 
 /**
@@ -74,7 +77,7 @@ function sectionMenuItems(activeSection: SectionId): MenuItemSpec[] {
  * @returns Menu template in Electron's MenuItemConstructorOptions shape.
  */
 export function buildMenuTemplate(context: MenuContext): MenuItemSpec[] {
-    const { hasWorkspace, recents, activeSection } = context;
+    const { hasWorkspace, recents, activeSection, theme } = context;
 
     const recentItems: MenuItemSpec[] =
         recents.length > 0
@@ -114,6 +117,17 @@ export function buildMenuTemplate(context: MenuContext): MenuItemSpec[] {
             { label: 'Toggle Sidebar', accelerator: 'CmdOrCtrl+B', action: 'toggle-sidebar' },
             { type: 'separator' },
             ...sectionMenuItems(activeSection),
+            { type: 'separator' },
+            {
+                label: 'Theme',
+                submenu: THEMES.map((entry) => ({
+                    label: entry.label,
+                    type: 'radio' as const,
+                    checked: entry.id === theme,
+                    action: 'set-theme' as const,
+                    actionArg: entry.id,
+                })),
+            },
             { type: 'separator' },
             { label: 'Reload', accelerator: 'F5', action: 'reload' },
             { label: 'Toggle Developer Tools', accelerator: 'CmdOrCtrl+Alt+I', action: 'devtools' },
