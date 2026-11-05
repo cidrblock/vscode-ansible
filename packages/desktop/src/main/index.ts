@@ -20,6 +20,7 @@ import {
     type McpStatus,
     type SectionId,
     type ServerStatus,
+    type SourceCollectionRef,
     type ThemeId,
     type WorkspaceEntry,
 } from '../shared/ipc';
@@ -35,6 +36,7 @@ import {
 } from './environment';
 import { loadEnvironments } from './environments';
 import { loadCollectionPlugins, loadCollections, loadPluginDoc } from './collections';
+import { loadSourcePluginDoc, loadSourcePlugins } from './sourceCollections';
 import { loadExecutionEnvironments } from './executionEnvironments';
 import { loadPlaybooks } from './playbooks';
 import { findSchemaNode, loadCreator } from './creator';
@@ -496,6 +498,14 @@ function registerIpc(): void {
     );
     ipcMain.handle(IPC.getPluginDoc, (_event, fqcn: string, pluginType: string) =>
         loadPluginDoc(fqcn, pluginType),
+    );
+    ipcMain.handle(IPC.getSourcePlugins, (_event, source: SourceCollectionRef) =>
+        loadSourcePlugins(app.getPath('userData'), source),
+    );
+    ipcMain.handle(
+        IPC.getSourcePluginDoc,
+        (_event, source: SourceCollectionRef, fqcn: string, pluginType: string) =>
+            loadSourcePluginDoc(app.getPath('userData'), source, fqcn, pluginType),
     );
     ipcMain.handle(IPC.getExecutionEnvironments, () => loadExecutionEnvironments());
     ipcMain.handle(IPC.getPlaybooks, (_event, workspacePath: string | null) =>

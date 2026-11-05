@@ -24,6 +24,8 @@ export const IPC = {
     getTools: 'navita:get-tools',
     getCollections: 'navita:get-collections',
     getCollectionPlugins: 'navita:get-collection-plugins',
+    getSourcePlugins: 'navita:get-source-plugins',
+    getSourcePluginDoc: 'navita:get-source-plugin-doc',
     getPluginDoc: 'navita:get-plugin-doc',
     getExecutionEnvironments: 'navita:get-execution-environments',
     getPlaybooks: 'navita:get-playbooks',
@@ -370,6 +372,29 @@ export interface CollectionPluginsResult {
     readonly detail?: string;
 }
 
+/** A collection as a source knows it, which is what the documentation caches take. */
+export interface SourceCollectionRef {
+    /** Where the collection was found. */
+    readonly kind: 'galaxy' | 'scm';
+    readonly namespace: string;
+    readonly name: string;
+    readonly version: string;
+    /** Repository full name, as `org/repo`; used when kind is `scm`. */
+    readonly repository?: string;
+}
+
+/** One plugin type in a source collection, with its plugins. */
+export interface SourcePluginType {
+    readonly type: string;
+    readonly plugins: readonly PluginEntry[];
+}
+
+export interface SourcePluginsResult {
+    readonly state: 'ready' | 'error';
+    readonly types: readonly SourcePluginType[];
+    readonly detail?: string;
+}
+
 /**
  * Documentation for one plugin.
  *
@@ -522,6 +547,12 @@ export interface NavitaBridge {
     copyText(text: string): Promise<void>;
     getCollections(): Promise<CollectionsResult>;
     getCollectionPlugins(collection: string, pluginType: string): Promise<CollectionPluginsResult>;
+    getSourcePlugins(source: SourceCollectionRef): Promise<SourcePluginsResult>;
+    getSourcePluginDoc(
+        source: SourceCollectionRef,
+        fqcn: string,
+        pluginType: string,
+    ): Promise<PluginDocResult>;
     getPluginDoc(fqcn: string, pluginType: string): Promise<PluginDocResult>;
     getExecutionEnvironments(): Promise<ExecutionEnvironmentsResult>;
     getPlaybooks(workspacePath: string | null): Promise<PlaybooksResult>;

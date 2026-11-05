@@ -8,9 +8,16 @@
 
 import type { PluginDocBridge } from '@ansible/ui';
 
+import type { PluginDocResult } from '../../shared/ipc';
+
+/** Loads documentation for one plugin from whichever cache backs the view. */
+export type PluginDocLoader = (fqcn: string, pluginType: string) => Promise<PluginDocResult>;
+
 export interface PluginDocBridgeOptions {
     /** Surface a message in navita's toast area. */
     readonly showToast: (message: string) => void;
+    /** Documentation source; defaults to ansible-doc over the installed collection. */
+    readonly loadDoc?: PluginDocLoader;
 }
 
 /**
@@ -19,6 +26,9 @@ export interface PluginDocBridgeOptions {
  * @returns Bridge implementation backed by IPC.
  */
 export function createPluginDocBridge(options: PluginDocBridgeOptions): PluginDocBridge {
+    const loadDoc: PluginDocLoader =
+        options.loadDoc ?? ((fqcn, pluginType) => window.navita.getPluginDoc(fqcn, pluginType));
+
     return {
         openFile: (target: string) => window.navita.openPath(target),
         showToast: options.showToast,
@@ -28,7 +38,7 @@ export function createPluginDocBridge(options: PluginDocBridgeOptions): PluginDo
             // navita has no per-view zoom persistence yet.
         },
         getPluginDoc: async (fqcn: string, pluginType: string) => {
-            const result = await window.navita.getPluginDoc(fqcn, pluginType);
+            const result = await loadDoc(fqcn, pluginType);
             if (result.state !== 'ready') {
                 return null;
             }

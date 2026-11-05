@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
 
-import type { CollectionsResult, CollectionSourcesResult, GitHubOrgSource } from '../../shared/ipc';
+import type {
+    CollectionSourcesResult,
+    GitHubOrgSource,
+    SourceCollectionRef,
+} from '../../shared/ipc';
 import { collectionCrumb, parseCollectionTrail } from '../collectionPath';
 import { CapNotice, FilterBox, filterItems } from '../filter';
 import { useTrail } from '../navigation';
@@ -54,7 +58,6 @@ export function CollectionSourcesView(props: {
 }): JSX.Element {
     const { onCopied, onNotice } = props;
     const [result, setResult] = useState<CollectionSourcesResult | null>(null);
-    const [installed, setInstalled] = useState<CollectionsResult | null>(null);
     const [galaxyQuery, setGalaxyQuery] = useState('');
     const [orgQuery, setOrgQuery] = useState('');
     const { trail, push } = useTrail('collection-sources');
@@ -97,31 +100,7 @@ export function CollectionSourcesView(props: {
     );
 
     const { collection } = parseCollectionTrail(trail);
-    const source = trail.at(0);
-
-    // Opening a collection asks the environment whether it is installed, which
-    // is what makes its plugin tree reachable from a source.
-    useEffect(() => {
-        if (collection === undefined) {
-            return undefined;
-        }
-        let active = true;
-        window.navita
-            .getCollections()
-            .then((next) => {
-                if (active) {
-                    setInstalled(next);
-                }
-            })
-            .catch(() => {
-                if (active) {
-                    setInstalled(null);
-                }
-            });
-        return () => {
-            active = false;
-        };
-    }, [collection]);
+    const origin = trail.at(0);
 
     const open = trail.at(-1);
 
@@ -164,8 +143,8 @@ export function CollectionSourcesView(props: {
     if (collection !== undefined) {
         // Metadata belongs to the source it was opened from: the Galaxy catalog
         // knows downloads, an organization cache knows the repository.
-        const orgName = source?.id.startsWith(ORG_PREFIX)
-            ? source.id.slice(ORG_PREFIX.length)
+        const orgName = origin?.id.startsWith(ORG_PREFIX)
+            ? origin.id.slice(ORG_PREFIX.length)
             : undefined;
         const galaxyEntry =
             orgName === undefined
@@ -178,7 +157,24 @@ export function CollectionSourcesView(props: {
                       .find((entry) => entry.org === orgName)
                       ?.collections.find((entry) => entry.name === collection);
         const prompt = galaxyEntry?.prompt ?? orgEntry?.prompt;
-        const entry = installed?.collections.find((item) => item.name === collection);
+        const dot = collection.indexOf('.');
+        const namespace = dot === -1 ? collection : collection.slice(0, dot);
+        const name = dot === -1 ? collection : collection.slice(dot + 1);
+        const source: SourceCollectionRef =
+            orgEntry === undefined
+                ? {
+                      kind: 'galaxy',
+                      namespace,
+                      name,
+                      version: galaxyEntry?.version ?? '',
+                  }
+                : {
+                      kind: 'scm',
+                      namespace,
+                      name,
+                      version: orgEntry.version,
+                      repository: orgEntry.repository,
+                  };
 
         const lead = (
             <>
@@ -222,7 +218,7 @@ export function CollectionSourcesView(props: {
             <CollectionTree
                 section="collection-sources"
                 collection={collection}
-                {...(entry === undefined ? {} : { entry })}
+                source={source}
                 lead={lead}
                 onCopied={onCopied}
                 onNotice={onNotice}
