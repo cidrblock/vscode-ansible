@@ -38,7 +38,7 @@ import { loadCollections } from './collections';
 import { loadExecutionEnvironments } from './executionEnvironments';
 import { loadPlaybooks } from './playbooks';
 import { findSchemaNode, loadCreator } from './creator';
-import { loadCollectionSources } from './collectionSources';
+import { loadCollectionSources, refreshCollectionSource } from './collectionSources';
 import { loadSkills } from './skills';
 import { invalidateToolCache, loadTools } from './tools';
 import { probeServers, serverEnv, serverSpawnSpec, type SpawnSpec } from './servers';
@@ -542,6 +542,9 @@ function registerIpc(): void {
         }
     });
     ipcMain.handle(IPC.getCollectionSources, () => loadCollectionSources(app.getPath('userData')));
+    ipcMain.handle(IPC.refreshCollectionSource, (_event, org: string) =>
+        refreshCollectionSource(app.getPath('userData'), org),
+    );
     ipcMain.handle(IPC.testConnection, async () =>
         workspace === null ? currentState() : activateWorkspace(workspace.path),
     );

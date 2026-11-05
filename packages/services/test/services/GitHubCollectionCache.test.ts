@@ -15,6 +15,7 @@ interface GitHubCollectionCachePrivate {
     _formatAge(ms: number): string;
     _saveToDisk(org: string, cache: GitHubOrgCache): void;
     _scanOrg(org: string, token: string): Promise<GitHubCollection[]>;
+    _searchCollectionRepos(org: string, token: string): Promise<Set<string> | null>;
     _scanOrgRepos(org: string, token: string): Promise<GitHubCollection[]>;
     _fetchCollectionMetadata(
         repoFullName: string,
@@ -359,14 +360,13 @@ description: Parsed from YAML
         expect(svc.isRefreshing('any-org')).toBe(false);
     });
 
-    it('refresh no-ops when vscode is not available (standalone mode)', async () => {
+    it('refresh reports a missing token when neither a resolver nor vscode is available', async () => {
         const log = vi.fn();
         const svc = GitHubCollectionCache.getInstance();
         svc.setLogFunction(log);
         await svc.refresh('some-org');
-        expect(log).toHaveBeenCalledWith(
-            expect.stringContaining('Cannot refresh some-org - not in VS Code context'),
-        );
+        expect(svc.getLastError('some-org')).toContain('no GitHub token available');
+        expect(log).toHaveBeenCalledWith(expect.stringContaining('no GitHub token available'));
     });
 
     it('_formatAge returns just now, minutes, hours, and days (private API)', () => {
@@ -408,17 +408,11 @@ description: Parsed from YAML
         expect(svc.getCount('initb')).toBe(1);
     });
 
-    it('refreshAll invokes refresh for every org (standalone no-ops)', async () => {
-        const log = vi.fn();
+    it('refreshAll visits every org and records the failure for each', async () => {
         const svc = GitHubCollectionCache.getInstance();
-        svc.setLogFunction(log);
         await svc.refreshAll(['a', 'b']);
-        expect(log).toHaveBeenCalledWith(
-            expect.stringContaining('Cannot refresh a - not in VS Code context'),
-        );
-        expect(log).toHaveBeenCalledWith(
-            expect.stringContaining('Cannot refresh b - not in VS Code context'),
-        );
+        expect(svc.getLastError('a')).toContain('no GitHub token available');
+        expect(svc.getLastError('b')).toContain('no GitHub token available');
     });
 
     it('getLastUpdated returns a Date instance', () => {
@@ -602,15 +596,14 @@ description: [a, b]
         vi.unstubAllGlobals();
     });
 
-    it('_scanOrg handles fetch errors gracefully', async () => {
+    it('_scanOrg rethrows transport errors so callers can report them', async () => {
         const svc = GitHubCollectionCache.getInstance();
         const log = vi.fn();
         svc.setLogFunction(log);
         const fetchMock = vi.fn().mockRejectedValueOnce(new Error('network down'));
         vi.stubGlobal('fetch', fetchMock);
 
-        const result = await privateCache(svc)._scanOrg('errorg', 'token');
-        expect(result).toEqual([]);
+        await expect(privateCache(svc)._scanOrg('errorg', 'token')).rejects.toThrow('network down');
         expect(log).toHaveBeenCalledWith(expect.stringContaining('Error scanning errorg'));
 
         vi.unstubAllGlobals();
@@ -634,13 +627,14 @@ description: [a, b]
         vi.unstubAllGlobals();
     });
 
-    it('_scanOrgRepos stops on non-ok response', async () => {
+    it('_scanOrgRepos raises the status on a refused request', async () => {
         const svc = GitHubCollectionCache.getInstance();
-        const fetchMock = vi.fn().mockResolvedValueOnce({ ok: false });
+        const fetchMock = vi.fn().mockResolvedValueOnce({ ok: false, status: 404 });
         vi.stubGlobal('fetch', fetchMock);
 
-        const result = await privateCache(svc)._scanOrgRepos('org', 'token');
-        expect(result).toEqual([]);
+        await expect(privateCache(svc)._scanOrgRepos('org', 'token')).rejects.toThrow(
+            'GitHub API returned 404 for orgs/org/repos',
+        );
 
         vi.unstubAllGlobals();
     });
@@ -691,6 +685,130 @@ description: [a, b]
 
         const result = await privateCache(svc)._fetchCollectionMetadata('org/repo', 'token', 'org');
         expect(result).toBeNull();
+
+        vi.unstubAllGlobals();
+    });
+
+    it('refresh uses the injected token resolver outside VS Code', async () => {
+        const svc = GitHubCollectionCache.getInstance();
+        const resolver = vi.fn().mockResolvedValue('resolved-token');
+        svc.setTokenResolver(resolver);
+
+        const galaxyYml = 'namespace: tok\nname: col\nversion: 1.0.0\ndescription: via resolver\n';
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () =>
+                    Promise.resolve({
+                        items: [{ repository: { full_name: 'tok/col', html_url: 'h' } }],
+                    }),
+            })
+            .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve(galaxyYml) });
+        vi.stubGlobal('fetch', fetchMock);
+
+        await svc.refresh('tokorg');
+
+        expect(resolver).toHaveBeenCalledTimes(1);
+        expect(svc.getCount('tokorg')).toBe(1);
+        expect(svc.getLastError('tokorg')).toBeUndefined();
+        expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe('Bearer resolved-token');
+        expect(fs.existsSync(path.join(cacheDir, 'github-tokorg.json'))).toBe(true);
+
+        vi.unstubAllGlobals();
+    });
+
+    it('refresh reports a missing token instead of caching an empty org', async () => {
+        const svc = GitHubCollectionCache.getInstance();
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+
+        await svc.refresh('notokorg');
+
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(svc.getLastError('notokorg')).toContain('no GitHub token available');
+        expect(fs.existsSync(path.join(cacheDir, 'github-notokorg.json'))).toBe(false);
+
+        vi.unstubAllGlobals();
+    });
+
+    it('refresh keeps the previous cache when the scan fails', async () => {
+        const existing: GitHubOrgCache = {
+            org: 'keepme',
+            collections: [
+                {
+                    namespace: 'old',
+                    name: 'col',
+                    version: '1.0.0',
+                    description: 'kept',
+                    repository: 'keepme/old',
+                    org: 'keepme',
+                    htmlUrl: 'h',
+                    installUrl: 'i',
+                },
+            ],
+            lastUpdated: '2026-01-01T00:00:00.000Z',
+        };
+        fs.writeFileSync(path.join(cacheDir, 'github-keepme.json'), JSON.stringify(existing));
+
+        const svc = GitHubCollectionCache.getInstance();
+        svc.setTokenResolver(() => 'token');
+        svc.loadFromDisk('keepme');
+        const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500 });
+        vi.stubGlobal('fetch', fetchMock);
+
+        await svc.refresh('keepme');
+
+        expect(svc.getLastError('keepme')).toContain('GitHub API returned 500');
+        expect(svc.getCount('keepme')).toBe(1);
+        const onDisk = JSON.parse(
+            fs.readFileSync(path.join(cacheDir, 'github-keepme.json'), 'utf-8'),
+        ) as GitHubOrgCache;
+        expect(onDisk.lastUpdated).toBe('2026-01-01T00:00:00.000Z');
+
+        vi.unstubAllGlobals();
+    });
+
+    it('_searchCollectionRepos reads every page of code search', async () => {
+        const svc = GitHubCollectionCache.getInstance();
+        const pageOne = Array.from({ length: 100 }, (_value, index) => ({
+            repository: { full_name: `org/r${String(index)}`, html_url: 'h' },
+        }));
+        const pageTwo = [
+            { repository: { full_name: 'org/late-a', html_url: 'h' } },
+            { repository: { full_name: 'org/late-b', html_url: 'h' } },
+        ];
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ items: pageOne }) })
+            .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ items: pageTwo }) });
+        vi.stubGlobal('fetch', fetchMock);
+
+        const repos = await privateCache(svc)._searchCollectionRepos('org', 'token');
+
+        expect(repos).not.toBeNull();
+        expect(repos?.size).toBe(102);
+        expect(repos?.has('org/late-b')).toBe(true);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(String(fetchMock.mock.calls[1][0])).toContain('page=2');
+        expect(String(fetchMock.mock.calls[1][0])).toContain('per_page=100');
+
+        vi.unstubAllGlobals();
+    });
+
+    it('_searchCollectionRepos stops at one page when it is short', async () => {
+        const svc = GitHubCollectionCache.getInstance();
+        const fetchMock = vi.fn().mockResolvedValueOnce({
+            ok: true,
+            json: () =>
+                Promise.resolve({ items: [{ repository: { full_name: 'o/r', html_url: 'h' } }] }),
+        });
+        vi.stubGlobal('fetch', fetchMock);
+
+        const repos = await privateCache(svc)._searchCollectionRepos('o', 'token');
+
+        expect(repos?.size).toBe(1);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
 
         vi.unstubAllGlobals();
     });

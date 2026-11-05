@@ -5,7 +5,7 @@ import { CapNotice, FilterBox, filterItems } from '../filter';
 import { useTrail } from '../navigation';
 import { CopyButton } from './CopyButton';
 
-/** How often the view asks again while the catalog is downloading. */
+/** How often the view asks again while a catalog or organization scan is running. */
 const POLL_MS = 2500;
 
 /** Trail id of the Galaxy catalog page. */
@@ -17,14 +17,17 @@ const ORG_PREFIX = 'github:';
 /**
  * Describe a GitHub organization cache in one line.
  * @param org - Cached organization.
- * @returns Collection count plus, when known, when it was refreshed.
+ * @returns Collection count plus, when known, when it was last scanned.
  */
 function orgSummary(org: GitHubOrgSource): string {
+    if (org.refreshing) {
+        return 'scanning GitHub…';
+    }
     const count = org.count === 0 ? 'not cached yet' : `${String(org.count)} collections`;
     if (org.lastUpdated === undefined) {
         return count;
     }
-    return `${count} · updated ${new Date(org.lastUpdated).toLocaleDateString()}`;
+    return `${count} · scanned ${new Date(org.lastUpdated).toLocaleDateString()}`;
 }
 
 /**
@@ -32,8 +35,9 @@ function orgSummary(org: GitHubOrgSource): string {
  *
  * The root is a list of sources; opening one pushes a crumb, so the breadcrumb
  * and Back behave like every other drill-down in the app. Galaxy browses the
- * whole catalog behind a filter; an organization page shows what its cache
- * actually holds, which today is counts rather than collection names.
+ * whole catalog behind a filter; an organization lists the collections its
+ * cache holds, which the extension populates by scanning galaxy.yml files, and
+ * navita can populate the same way through the service's token resolver.
  * @param props - Component properties.
  * @param props.onCopied - Called with a label once a prompt is copied.
  * @returns The collection sources panel.
@@ -41,41 +45,72 @@ function orgSummary(org: GitHubOrgSource): string {
 export function CollectionSourcesView(props: { onCopied: (label: string) => void }): JSX.Element {
     const { onCopied } = props;
     const [result, setResult] = useState<CollectionSourcesResult | null>(null);
-    const [query, setQuery] = useState('');
+    const [galaxyQuery, setGalaxyQuery] = useState('');
+    const [orgQuery, setOrgQuery] = useState('');
     const { trail, push } = useTrail('collection-sources');
 
-    const load = useCallback(() => {
-        window.navita
-            .getCollectionSources()
-            .then(setResult)
-            .catch((error: unknown) => {
-                setResult({
-                    state: 'error',
-                    total: 0,
-                    galaxy: [],
-                    github: [],
-                    detail: error instanceof Error ? error.message : String(error),
-                });
+    const apply = useCallback((next: Promise<CollectionSourcesResult>) => {
+        next.then(setResult).catch((error: unknown) => {
+            setResult({
+                state: 'error',
+                total: 0,
+                galaxy: [],
+                github: [],
+                detail: error instanceof Error ? error.message : String(error),
             });
+        });
     }, []);
+
+    const load = useCallback(() => {
+        apply(window.navita.getCollectionSources());
+    }, [apply]);
 
     useEffect(() => {
         load();
     }, [load]);
 
+    const scanning = result?.github.some((org) => org.refreshing) === true;
+
     useEffect(() => {
-        if (result?.state !== 'loading') {
+        if (result?.state !== 'loading' && !scanning) {
             return undefined;
         }
         const timer = setTimeout(load, POLL_MS);
         return () => {
             clearTimeout(timer);
         };
-    }, [result, load]);
+    }, [result, scanning, load]);
 
     const galaxyCatalogue = useMemo(
-        () => filterItems(result?.galaxy ?? [], (entry) => entry.name, query),
-        [result, query],
+        () => filterItems(result?.galaxy ?? [], (entry) => entry.name, galaxyQuery),
+        [result, galaxyQuery],
+    );
+
+    const open = trail.at(-1);
+
+    const org = useMemo(() => {
+        if (open?.id.startsWith(ORG_PREFIX) !== true) {
+            return undefined;
+        }
+        const name = open.id.slice(ORG_PREFIX.length);
+        return result?.github.find((entry) => entry.org === name);
+    }, [open, result]);
+
+    const orgCatalogue = useMemo(
+        () =>
+            filterItems(
+                org?.collections ?? [],
+                (entry) => `${entry.name} ${entry.description}`,
+                orgQuery,
+            ),
+        [org, orgQuery],
+    );
+
+    const scanOrg = useCallback(
+        (name: string) => {
+            apply(window.navita.refreshCollectionSource(name));
+        },
+        [apply],
     );
 
     if (result !== null && result.state === 'error') {
@@ -89,25 +124,27 @@ export function CollectionSourcesView(props: { onCopied: (label: string) => void
         );
     }
 
-    const open = trail.at(-1);
-
     if (open?.id === GALAXY_ID) {
         return (
             <section className="card">
                 <div className="card-header">
                     <h2>Galaxy</h2>
-                    <FilterBox label="Filter collections" value={query} onChange={setQuery} />
+                    <FilterBox
+                        label="Filter collections"
+                        value={galaxyQuery}
+                        onChange={setGalaxyQuery}
+                    />
                     <span className="muted">
                         {result === null
                             ? 'loading Galaxy catalog…'
                             : result.state === 'loading'
                               ? (result.detail ?? 'loading Galaxy catalog…')
-                              : query.trim().length > 0
+                              : galaxyQuery.trim().length > 0
                                 ? `${String(galaxyCatalogue.matches)} of ${String(result.total)} collections`
                                 : `${String(result.total)} collections`}
                     </span>
                     <button className="ghost" onClick={load}>
-                        Refresh
+                        Reload
                     </button>
                 </div>
                 {result === null ? (
@@ -120,7 +157,7 @@ export function CollectionSourcesView(props: { onCopied: (label: string) => void
                 ) : result.galaxy.length === 0 ? (
                     <p className="muted">{result.detail ?? 'No Galaxy collections cached yet.'}</p>
                 ) : galaxyCatalogue.matches === 0 ? (
-                    <p className="muted">No collections match “{query}”.</p>
+                    <p className="muted">No collections match “{galaxyQuery}”.</p>
                 ) : (
                     <>
                         <ul className="item-list">
@@ -156,13 +193,34 @@ export function CollectionSourcesView(props: { onCopied: (label: string) => void
 
     if (open?.id.startsWith(ORG_PREFIX)) {
         const name = open.id.slice(ORG_PREFIX.length);
-        const org = result?.github.find((entry) => entry.org === name);
         return (
             <section className="card">
                 <div className="card-header">
                     <h2>{name}</h2>
-                    <button className="ghost" onClick={load}>
-                        Refresh
+                    {org !== undefined && org.collections.length > 0 && (
+                        <FilterBox
+                            label="Filter collections"
+                            value={orgQuery}
+                            onChange={setOrgQuery}
+                        />
+                    )}
+                    <span className="muted">
+                        {org === undefined
+                            ? '…'
+                            : org.refreshing
+                              ? 'scanning…'
+                              : orgQuery.trim().length > 0
+                                ? `${String(orgCatalogue.matches)} of ${String(org.count)} collections`
+                                : `${String(org.count)} collections`}
+                    </span>
+                    <button
+                        className="ghost"
+                        disabled={org?.refreshing === true}
+                        onClick={() => {
+                            scanOrg(name);
+                        }}
+                    >
+                        {org?.refreshing === true ? 'Scanning…' : 'Scan now'}
                     </button>
                 </div>
                 {result === null ? (
@@ -172,23 +230,45 @@ export function CollectionSourcesView(props: { onCopied: (label: string) => void
                         This organization is no longer in the cache. Back returns to the source
                         list.
                     </p>
+                ) : org.error !== undefined ? (
+                    <p className="muted">
+                        The last scan failed: {org.error}. Scans need a GitHub token — either
+                        <code> GH_TOKEN</code> or a <code>gh auth login</code> session.
+                    </p>
+                ) : org.collections.length === 0 ? (
+                    <p className="muted">
+                        {org.refreshing
+                            ? 'Scanning this organization for galaxy.yml files. One API call per repository, so this takes a while.'
+                            : 'Nothing cached yet. Scan now reads every repository in the organization and caches the ones with a galaxy.yml.'}
+                    </p>
+                ) : orgCatalogue.matches === 0 ? (
+                    <p className="muted">No collections match “{orgQuery}”.</p>
                 ) : (
                     <>
-                        <dl className="status-list">
-                            <dt>Collections</dt>
-                            <dd>{org.count === 0 ? 'not cached yet' : String(org.count)}</dd>
-                            <dt>Last updated</dt>
-                            <dd>
-                                {org.lastUpdated === undefined
-                                    ? 'unknown'
-                                    : new Date(org.lastUpdated).toLocaleString()}
-                            </dd>
-                        </dl>
-                        <p className="muted">
-                            navita reads this from the VS Code extension&apos;s organization cache,
-                            which records counts rather than collection names. Fetching the
-                            organization itself is still an open question.
-                        </p>
+                        <ul className="item-list">
+                            {orgCatalogue.items.map((collection) => (
+                                <li key={collection.name} className="item-row">
+                                    <div className="item-main">
+                                        <span className="item-title">{collection.name}</span>
+                                        <span className="item-description">
+                                            {collection.description.length > 0
+                                                ? collection.description
+                                                : collection.repository}
+                                        </span>
+                                    </div>
+                                    <span className="item-tag">{collection.version}</span>
+                                    <CopyButton
+                                        label={collection.name}
+                                        prompt={collection.prompt}
+                                        onCopied={onCopied}
+                                    />
+                                </li>
+                            ))}
+                        </ul>
+                        <CapNotice
+                            shown={orgCatalogue.items.length}
+                            matches={orgCatalogue.matches}
+                        />
                     </>
                 )}
             </section>
@@ -207,7 +287,7 @@ export function CollectionSourcesView(props: { onCopied: (label: string) => void
                         : `${String(sources + 1)} source${sources === 0 ? '' : 's'}`}
                 </span>
                 <button className="ghost" onClick={load}>
-                    Refresh
+                    Reload
                 </button>
             </div>
             <ul className="item-list">
@@ -231,16 +311,20 @@ export function CollectionSourcesView(props: { onCopied: (label: string) => void
                         Browse
                     </button>
                 </li>
-                {(result?.github ?? []).map((org) => (
-                    <li key={org.org} className="item-row">
+                {(result?.github ?? []).map((orgEntry) => (
+                    <li key={orgEntry.org} className="item-row">
                         <div className="item-main">
-                            <span className="item-title">{org.org}</span>
-                            <span className="item-description">{orgSummary(org)}</span>
+                            <span className="item-title">{orgEntry.org}</span>
+                            <span className="item-description">{orgSummary(orgEntry)}</span>
                         </div>
                         <button
                             className="ghost"
                             onClick={() => {
-                                push({ id: `${ORG_PREFIX}${org.org}`, label: org.org });
+                                setOrgQuery('');
+                                push({
+                                    id: `${ORG_PREFIX}${orgEntry.org}`,
+                                    label: orgEntry.org,
+                                });
                             }}
                         >
                             Open

@@ -89,6 +89,8 @@ const bridge: NavitaBridge = {
     },
     getCollectionSources: () =>
         ipcRenderer.invoke(IPC.getCollectionSources) as Promise<CollectionSourcesResult>,
+    refreshCollectionSource: (org: string) =>
+        ipcRenderer.invoke(IPC.refreshCollectionSource, org) as Promise<CollectionSourcesResult>,
     onStateChanged: (listener: (state: AppState) => void) => {
         const handler = (_event: IpcRendererEvent, state: AppState): void => {
             listener(state);

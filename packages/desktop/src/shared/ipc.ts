@@ -27,6 +27,7 @@ export const IPC = {
     getPlaybooks: 'navita:get-playbooks',
     getCreator: 'navita:get-creator',
     getCollectionSources: 'navita:get-collection-sources',
+    refreshCollectionSource: 'navita:refresh-collection-source',
     getSkills: 'navita:get-skills',
     copyText: 'navita:copy-text',
     runCreator: 'navita:run-creator',
@@ -425,11 +426,29 @@ export interface CollectionSourceEntry {
     readonly prompt: string;
 }
 
-/** Cached collection count for one GitHub organization. */
+/** One collection discovered in a GitHub organization. */
+export interface GitHubCollectionEntry {
+    /** Fully qualified name, as `namespace.name`. */
+    readonly name: string;
+    readonly version: string;
+    readonly description: string;
+    readonly repository: string;
+    readonly htmlUrl: string;
+    /** AI summary prompt for this collection. */
+    readonly prompt: string;
+}
+
+/** Cached collections for one GitHub organization. */
 export interface GitHubOrgSource {
     readonly org: string;
     readonly count: number;
     readonly lastUpdated?: string;
+    /** Collections in the cache; empty until the org has been scanned once. */
+    readonly collections: readonly GitHubCollectionEntry[];
+    /** True while a scan is running, so the view can poll instead of guessing. */
+    readonly refreshing: boolean;
+    /** Why the last scan failed, when it did. */
+    readonly error?: string;
 }
 
 export interface CollectionSourcesResult {
@@ -470,6 +489,7 @@ export interface NavitaBridge {
     openPath(target: string): Promise<void>;
     onNavigateBack(listener: () => void): () => void;
     getCollectionSources(): Promise<CollectionSourcesResult>;
+    refreshCollectionSource(org: string): Promise<CollectionSourcesResult>;
     onStateChanged(listener: (state: AppState) => void): () => void;
     onToggleSidebar(listener: () => void): () => void;
 }

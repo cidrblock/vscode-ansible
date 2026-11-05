@@ -12,6 +12,12 @@ try {
     // Running standalone
 }
 
+/** Repositories requested per code search page; GitHub allows up to 100. */
+const SEARCH_PAGE_SIZE = 100;
+
+/** Code search stops at 1000 results, so ten pages is the whole window. */
+const SEARCH_PAGE_LIMIT = 10;
+
 /**
  * Represents a collection found in a GitHub organization
  */
@@ -36,12 +42,23 @@ interface GitHubOrgCache {
 }
 
 /**
+ * Supplies a GitHub token when VS Code's authentication provider is not in play.
+ *
+ * The extension keeps using `vscode.authentication.getSession`, which can prompt
+ * the user; a host such as navita passes an environment token or the output of
+ * `gh auth token`. Returning undefined means "no token available", never "ask".
+ */
+export type GitHubTokenResolver = () => Promise<string | undefined> | string | undefined;
+
+/**
  * Service to discover and cache Ansible collections from GitHub organizations
  */
 export class GitHubCollectionCache {
     private static _instance: GitHubCollectionCache | undefined;
     private _caches = new Map<string, GitHubOrgCache>();
     private _refreshInProgress = new Set<string>();
+    private _errors = new Map<string, string>();
+    private _tokenResolver: GitHubTokenResolver | undefined;
     private _log: (msg: string) => void = console.log;
 
     /**
@@ -68,6 +85,48 @@ export class GitHubCollectionCache {
      */
     public setLogFunction(logFn: (msg: string) => void): void {
         this._log = logFn;
+    }
+
+    /**
+     * Supply GitHub credentials for hosts without the VS Code authentication API.
+     *
+     * Called with undefined to fall back to VS Code's provider.
+     *
+     * @param resolver - Returns a token, or undefined when none is available.
+     */
+    public setTokenResolver(resolver: GitHubTokenResolver | undefined): void {
+        this._tokenResolver = resolver;
+    }
+
+    /**
+     * Resolve a token, preferring the injected resolver over VS Code sign-in.
+     *
+     * @returns A bearer token, or undefined when no provider could supply one.
+     */
+    private async _resolveToken(): Promise<string | undefined> {
+        if (this._tokenResolver) {
+            const token = await this._tokenResolver();
+            if (token !== undefined && token.length > 0) {
+                return token;
+            }
+        }
+        if (!vscode) {
+            return undefined;
+        }
+        const session = await vscode.authentication.getSession('github', ['public_repo'], {
+            createIfNone: true,
+        });
+        return session.accessToken;
+    }
+
+    /**
+     * Why the last refresh of an org failed.
+     *
+     * @param org - GitHub organization whose last failure is requested.
+     * @returns The message from the most recent failure, cleared on success.
+     */
+    public getLastError(org: string): string | undefined {
+        return this._errors.get(org);
     }
 
     /**
@@ -228,26 +287,24 @@ export class GitHubCollectionCache {
      * @param org - GitHub organization to scan for galaxy.yml repositories.
      */
     public async refresh(org: string): Promise<void> {
-        if (!vscode) {
-            this._log(`GitHubCollectionCache: Cannot refresh ${org} - not in VS Code context`);
-            return;
-        }
-
         if (this._refreshInProgress.has(org)) {
             this._log(`GitHubCollectionCache: Refresh already in progress for ${org}`);
             return;
         }
 
         this._refreshInProgress.add(org);
+        this._errors.delete(org);
         this._log(`GitHubCollectionCache: Starting refresh for ${org}`);
 
         try {
-            // Get GitHub authentication
-            const session = await vscode.authentication.getSession('github', ['public_repo'], {
-                createIfNone: true,
-            });
+            const token = await this._resolveToken();
+            if (token === undefined) {
+                throw new Error(
+                    'no GitHub token available: set one with setTokenResolver() or sign in through VS Code',
+                );
+            }
 
-            const collections = await this._scanOrg(org, session.accessToken);
+            const collections = await this._scanOrg(org, token);
 
             const cache: GitHubOrgCache = {
                 org,
@@ -262,9 +319,11 @@ export class GitHubCollectionCache {
                 `GitHubCollectionCache: Found ${String(collections.length)} collections in ${org}`,
             );
         } catch (error) {
-            this._log(
-                `GitHubCollectionCache: Error refreshing ${org}: ${error instanceof Error ? error.message : String(error)}`,
-            );
+            const message = error instanceof Error ? error.message : String(error);
+            // Leaving the previous cache in place matters: a failed scan used to
+            // persist an empty list, which read as "this org has no collections".
+            this._errors.set(org, message);
+            this._log(`GitHubCollectionCache: Error refreshing ${org}: ${message}`);
         } finally {
             this._refreshInProgress.delete(org);
         }
@@ -281,42 +340,16 @@ export class GitHubCollectionCache {
         const collections: GitHubCollection[] = [];
 
         try {
-            // Search for repos with galaxy.yml at root
-            const searchUrl = `https://api.github.com/search/code?q=org:${org}+filename:galaxy.yml+path:/`;
-
-            const searchResponse = await fetch(searchUrl, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    Accept: 'application/vnd.github.v3+json',
-                    'User-Agent': 'VSCode-Ansible-Environments',
-                },
-            });
-
-            if (!searchResponse.ok) {
-                // If code search fails (rate limit, etc.), fall back to repo listing
-                this._log(
-                    `GitHubCollectionCache: Code search failed for ${org}, falling back to repo scan`,
-                );
+            const repos = await this._searchCollectionRepos(org, token);
+            if (repos === null) {
                 return await this._scanOrgRepos(org, token);
             }
-
-            const searchData = (await searchResponse.json()) as {
-                items?: { repository: { full_name: string; html_url: string } }[];
-            };
-
-            if (!searchData.items || searchData.items.length === 0) {
+            if (repos.size === 0) {
                 this._log(`GitHubCollectionCache: No galaxy.yml files found in ${org}`);
                 return collections;
             }
 
-            // Get unique repos
-            const repoSet = new Set<string>();
-            for (const item of searchData.items) {
-                repoSet.add(item.repository.full_name);
-            }
-
-            // Fetch galaxy.yml for each repo
-            for (const repoFullName of repoSet) {
+            for (const repoFullName of repos) {
                 try {
                     const collection = await this._fetchCollectionMetadata(
                         repoFullName,
@@ -336,9 +369,57 @@ export class GitHubCollectionCache {
             this._log(
                 `GitHubCollectionCache: Error scanning ${org}: ${error instanceof Error ? error.message : String(error)}`,
             );
+            throw error;
         }
 
         return collections;
+    }
+
+    /**
+     * List repositories in an org that carry a galaxy.yml at their root.
+     *
+     * Search returns 30 hits per page by default, so an org with more than that
+     * silently lost the rest of its collections. The whole window is read here.
+     * @param org - GitHub organization to search.
+     * @param token - GitHub API bearer token for authenticated requests.
+     * @returns Repository full names, or null when code search is unavailable.
+     */
+    private async _searchCollectionRepos(org: string, token: string): Promise<Set<string> | null> {
+        const repoSet = new Set<string>();
+
+        for (let page = 1; page <= SEARCH_PAGE_LIMIT; page++) {
+            const searchUrl =
+                `https://api.github.com/search/code?q=org:${org}+filename:galaxy.yml+path:/` +
+                `&per_page=${String(SEARCH_PAGE_SIZE)}&page=${String(page)}`;
+
+            const searchResponse = await fetch(searchUrl, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: 'application/vnd.github.v3+json',
+                    'User-Agent': 'VSCode-Ansible-Environments',
+                },
+            });
+
+            if (!searchResponse.ok) {
+                this._log(
+                    `GitHubCollectionCache: Code search failed for ${org}, falling back to repo scan`,
+                );
+                return null;
+            }
+
+            const searchData = (await searchResponse.json()) as {
+                items?: { repository: { full_name: string; html_url: string } }[];
+            };
+            const items = searchData.items ?? [];
+            for (const item of items) {
+                repoSet.add(item.repository.full_name);
+            }
+            if (items.length < SEARCH_PAGE_SIZE) {
+                return repoSet;
+            }
+        }
+
+        return repoSet;
     }
 
     /**
@@ -365,7 +446,9 @@ export class GitHubCollectionCache {
             });
 
             if (!response.ok) {
-                break;
+                throw new Error(
+                    `GitHub API returned ${String(response.status)} for orgs/${org}/repos`,
+                );
             }
 
             const repos = (await response.json()) as { full_name: string; html_url: string }[];

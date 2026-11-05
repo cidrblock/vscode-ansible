@@ -429,15 +429,65 @@ if (process.exitCode !== 1) {
 
     const sourcesModule = await bundleModule('collectionSources.ts', 'collection-sources');
     const storage = fs.mkdtempSync(path.join(os.tmpdir(), 'navita-sources-'));
-    const sources = await sourcesModule.loadCollectionSources(storage, { startLoad: false });
-    fs.rmSync(storage, { recursive: true, force: true });
+    // A temporary HOME with one organization cache proves the read path carries
+    // collection rows, not only counts, without touching the real cache.
+    const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'navita-home-'));
+    const ghCacheDir = path.join(fakeHome, '.cache', 'ansible-environments');
+    fs.mkdirSync(ghCacheDir, { recursive: true });
+    fs.writeFileSync(
+        path.join(ghCacheDir, 'github-ansible-collections.json'),
+        JSON.stringify({
+            org: 'ansible-collections',
+            lastUpdated: '2026-11-05T00:00:00.000Z',
+            collections: [
+                {
+                    namespace: 'community',
+                    name: 'general',
+                    version: '14.1.0',
+                    description: 'General purpose modules',
+                    repository: 'ansible-collections/community.general',
+                    org: 'ansible-collections',
+                    htmlUrl: 'https://github.com/ansible-collections/community.general',
+                    installUrl: 'git+https://github.com/ansible-collections/community.general.git',
+                },
+                {
+                    namespace: 'cisco',
+                    name: 'ios',
+                    version: '11.6.0',
+                    description: 'IOS modules',
+                    repository: 'ansible-collections/cisco.ios',
+                    org: 'ansible-collections',
+                    htmlUrl: 'https://github.com/ansible-collections/cisco.ios',
+                    installUrl: 'git+https://github.com/ansible-collections/cisco.ios.git',
+                },
+            ],
+        }),
+    );
+    const realHome = process.env.HOME;
+    process.env.HOME = fakeHome;
+    let sources;
+    try {
+        sources = await sourcesModule.loadCollectionSources(storage, { startLoad: false });
+    } finally {
+        process.env.HOME = realHome;
+        fs.rmSync(fakeHome, { recursive: true, force: true });
+        fs.rmSync(storage, { recursive: true, force: true });
+    }
     if (sources.state === 'error') {
         fail(`collection sources: ${sources.detail}`);
     } else {
-        const cached = sources.github.filter((org) => org.count > 0).map((org) => org.org);
-        console.log(
-            `PASS  sources         state=${sources.state}, Galaxy=${sources.total}, GitHub orgs cached: ${cached.join(', ') || 'none'}`,
-        );
+        const org = sources.github.find((entry) => entry.org === 'ansible-collections');
+        if (org === undefined || org.collections.length !== 2) {
+            fail(
+                `collection sources: expected 2 collection rows for ansible-collections, got ${String(org?.collections.length ?? 0)}`,
+            );
+        } else if (org.collections[0].prompt.length === 0) {
+            fail('collection sources: GitHub collection rows have no prompt');
+        } else {
+            console.log(
+                `PASS  sources         state=${sources.state}, Galaxy=${sources.total}, GitHub rows=${String(org.collections.length)} (${org.collections.map((entry) => entry.name).join(', ')})`,
+            );
+        }
     }
 
     const environmentsModule = await bundleModule('environments.ts', 'environments');

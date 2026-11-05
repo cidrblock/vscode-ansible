@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { toGalaxyEntries } from '../src/main/collectionSources';
+import {
+    resolveGitHubToken,
+    toGalaxyEntries,
+    toGitHubEntries,
+} from '../src/main/collectionSources';
 
 describe('toGalaxyEntries', () => {
     it('joins namespace and name into a fully qualified name', () => {
@@ -37,5 +41,48 @@ describe('toGalaxyEntries', () => {
 
     it('handles an empty catalog', () => {
         expect(toGalaxyEntries([])).toEqual([]);
+    });
+});
+
+describe('toGitHubEntries', () => {
+    it('keeps the repository metadata and attaches the summary prompt', () => {
+        const entries = toGitHubEntries([
+            {
+                namespace: 'community',
+                name: 'general',
+                version: '12.0.0',
+                description: 'A collection of modules.',
+                repository: 'ansible-collections/community.general',
+                org: 'ansible-collections',
+                htmlUrl: 'https://github.com/ansible-collections/community.general',
+                installUrl: 'git+https://github.com/ansible-collections/community.general.git',
+            },
+        ]);
+
+        expect(entries[0].name).toBe('community.general');
+        expect(entries[0].description).toBe('A collection of modules.');
+        expect(entries[0].htmlUrl).toContain('community.general');
+        expect(entries[0].prompt).toContain('Collection: community.general');
+    });
+
+    it('handles an organization with no cached collections', () => {
+        expect(toGitHubEntries([])).toEqual([]);
+    });
+});
+
+describe('resolveGitHubToken', () => {
+    const saved = process.env.GH_TOKEN;
+
+    afterEach(() => {
+        if (saved === undefined) {
+            delete process.env.GH_TOKEN;
+        } else {
+            process.env.GH_TOKEN = saved;
+        }
+    });
+
+    it('prefers GH_TOKEN from the environment over any stored credential', async () => {
+        process.env.GH_TOKEN = 'env-token';
+        await expect(resolveGitHubToken()).resolves.toBe('env-token');
     });
 });
