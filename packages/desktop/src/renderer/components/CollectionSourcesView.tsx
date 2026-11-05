@@ -10,6 +10,7 @@ import { CapNotice, FilterBox, filterItems } from '../filter';
 import { useTrail } from '../navigation';
 import { CollectionTree } from './CollectionTree';
 import { CopyButton } from './CopyButton';
+import { DrillButton } from './DrillButton';
 
 /** How often the view asks again while a catalog or organization scan is running. */
 const POLL_MS = 2500;
@@ -275,18 +276,16 @@ export function CollectionSourcesView(props: {
                                         <span className="item-tag">deprecated</span>
                                     )}
                                     <span className="item-tag">{collection.version}</span>
-                                    <button
-                                        className="ghost"
-                                        onClick={() => {
-                                            push(collectionCrumb(collection.name));
-                                        }}
-                                    >
-                                        Open
-                                    </button>
                                     <CopyButton
                                         label={collection.name}
                                         prompt={collection.prompt}
                                         onCopied={onCopied}
+                                    />
+                                    <DrillButton
+                                        label={collection.name}
+                                        onOpen={() => {
+                                            push(collectionCrumb(collection.name));
+                                        }}
                                     />
                                 </li>
                             ))}
@@ -367,18 +366,16 @@ export function CollectionSourcesView(props: {
                                         </span>
                                     </div>
                                     <span className="item-tag">{collection.version}</span>
-                                    <button
-                                        className="ghost"
-                                        onClick={() => {
-                                            push(collectionCrumb(collection.name));
-                                        }}
-                                    >
-                                        Open
-                                    </button>
                                     <CopyButton
                                         label={collection.name}
                                         prompt={collection.prompt}
                                         onCopied={onCopied}
+                                    />
+                                    <DrillButton
+                                        label={collection.name}
+                                        onOpen={() => {
+                                            push(collectionCrumb(collection.name));
+                                        }}
                                     />
                                 </li>
                             ))}
@@ -420,14 +417,13 @@ export function CollectionSourcesView(props: {
                                   : `${String(result.total)} collections · searchable`}
                         </span>
                     </div>
-                    <button
-                        className="ghost"
-                        onClick={() => {
+                    <DrillButton
+                        label="Galaxy"
+                        title="Browse Galaxy collections"
+                        onOpen={() => {
                             push({ id: GALAXY_ID, label: 'Galaxy' });
                         }}
-                    >
-                        Browse
-                    </button>
+                    />
                 </li>
                 {(result?.github ?? []).map((orgEntry) => (
                     <li key={orgEntry.org} className="item-row">
@@ -435,18 +431,16 @@ export function CollectionSourcesView(props: {
                             <span className="item-title">{orgEntry.org}</span>
                             <span className="item-description">{orgSummary(orgEntry)}</span>
                         </div>
-                        <button
-                            className="ghost"
-                            onClick={() => {
+                        <DrillButton
+                            label={orgEntry.org}
+                            onOpen={() => {
                                 setOrgQuery('');
                                 push({
                                     id: `${ORG_PREFIX}${orgEntry.org}`,
                                     label: orgEntry.org,
                                 });
                             }}
-                        >
-                            Open
-                        </button>
+                        />
                     </li>
                 ))}
             </ul>

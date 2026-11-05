@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react';
 
 import { SECTIONS, type AppState, type HarnessId, type SectionId } from '../shared/ipc';
 import { CollectionsView } from './components/CollectionsView';
@@ -207,6 +207,49 @@ export function App(): JSX.Element {
     const canGoBack =
         activeSection !== undefined && (trail.length > 0 || activeSection !== 'overview');
 
+    // Depth drives the page transition. The previous page is kept in state so
+    // the direction is already known when the new page mounts, which is what
+    // lets its slide start on first paint instead of one frame late.
+    const pageKey = `${activeSection ?? ''}:${trail.map((crumb) => crumb.id).join('>')}`;
+    const [previousPage, setPreviousPage] = useState<{
+        key: string;
+        section: SectionId | undefined;
+        depth: number;
+        move: 'forward' | 'back';
+    }>({ key: pageKey, section: activeSection, depth: trail.length, move: 'forward' });
+    if (previousPage.key !== pageKey) {
+        const deeper = previousPage.section === activeSection && trail.length < previousPage.depth;
+        const toOverview = activeSection === 'overview' && previousPage.section !== 'overview';
+        setPreviousPage({
+            key: pageKey,
+            section: activeSection,
+            depth: trail.length,
+            move: deeper || toOverview ? 'back' : 'forward',
+        });
+    }
+    const pageMove = previousPage.move;
+
+    // The page is animated here rather than through a keyed remount, so a view
+    // keeps its own state (filter text, open form) when the trail moves. Keys
+    // would restart the animation but throw that state away on every step.
+    const pageRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const element = pageRef.current;
+        if (element === null || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return;
+        }
+        element.animate(
+            [
+                {
+                    opacity: 0,
+                    transform: `translateX(${pageMove === 'forward' ? '12px' : '-12px'})`,
+                },
+                { opacity: 1, transform: 'translateX(0)' },
+            ],
+            { duration: 170, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
+        );
+    }, [pageKey, pageMove]);
+
     // A different workspace means every trail points at data that no longer exists.
     const workspacePath = state?.workspace?.path;
     useEffect(() => {
@@ -282,75 +325,80 @@ export function App(): JSX.Element {
                             <main className="pane">
                                 <ViewHeader crumbs={crumbs} canGoBack={canGoBack} onBack={back} />
 
-                                {state.activeSection === 'overview' && (
-                                    <OverviewView
-                                        state={state}
-                                        onOpenWorkspace={() => {
-                                            run(() => window.navita.openWorkspace());
-                                        }}
-                                        onRescanWorkspace={() => {
-                                            run(() => window.navita.rescanWorkspace());
-                                        }}
-                                        onGo={navigate}
-                                    />
-                                )}
+                                <div className="page" ref={pageRef}>
+                                    {state.activeSection === 'overview' && (
+                                        <OverviewView
+                                            state={state}
+                                            onOpenWorkspace={() => {
+                                                run(() => window.navita.openWorkspace());
+                                            }}
+                                            onRescanWorkspace={() => {
+                                                run(() => window.navita.rescanWorkspace());
+                                            }}
+                                            onGo={navigate}
+                                        />
+                                    )}
 
-                                {state.activeSection === 'dev-tools' && <DevToolsView />}
+                                    {state.activeSection === 'dev-tools' && <DevToolsView />}
 
-                                {state.activeSection === 'env-managers' && (
-                                    <EnvironmentsView workspacePath={state.workspace.path} />
-                                )}
+                                    {state.activeSection === 'env-managers' && (
+                                        <EnvironmentsView workspacePath={state.workspace.path} />
+                                    )}
 
-                                {state.activeSection === 'ai-tools' && (
-                                    <ToolsView onCopied={handleCopied} />
-                                )}
+                                    {state.activeSection === 'ai-tools' && (
+                                        <ToolsView onCopied={handleCopied} />
+                                    )}
 
-                                {state.activeSection === 'ai-skills' && (
-                                    <SkillsView onCopied={handleCopied} />
-                                )}
+                                    {state.activeSection === 'ai-skills' && (
+                                        <SkillsView onCopied={handleCopied} />
+                                    )}
 
-                                {state.activeSection === 'execution-environments' && (
-                                    <ExecutionEnvironmentsView />
-                                )}
+                                    {state.activeSection === 'execution-environments' && (
+                                        <ExecutionEnvironmentsView />
+                                    )}
 
-                                {state.activeSection === 'installed-collections' && (
-                                    <CollectionsView onCopied={handleCopied} onNotice={setNotice} />
-                                )}
+                                    {state.activeSection === 'installed-collections' && (
+                                        <CollectionsView
+                                            onCopied={handleCopied}
+                                            onNotice={setNotice}
+                                        />
+                                    )}
 
-                                {state.activeSection === 'playbooks' && (
-                                    <PlaybooksView
-                                        workspacePath={state.workspace.path}
-                                        onCopied={handleCopied}
-                                    />
-                                )}
+                                    {state.activeSection === 'playbooks' && (
+                                        <PlaybooksView
+                                            workspacePath={state.workspace.path}
+                                            onCopied={handleCopied}
+                                        />
+                                    )}
 
-                                {state.activeSection === 'creator' && (
-                                    <CreatorView
-                                        workspacePath={state.workspace.path}
-                                        onCopied={handleCopied}
-                                        onNotice={setNotice}
-                                    />
-                                )}
+                                    {state.activeSection === 'creator' && (
+                                        <CreatorView
+                                            workspacePath={state.workspace.path}
+                                            onCopied={handleCopied}
+                                            onNotice={setNotice}
+                                        />
+                                    )}
 
-                                {state.activeSection === 'collection-sources' && (
-                                    <CollectionSourcesView
-                                        onCopied={handleCopied}
-                                        onNotice={setNotice}
-                                    />
-                                )}
+                                    {state.activeSection === 'collection-sources' && (
+                                        <CollectionSourcesView
+                                            onCopied={handleCopied}
+                                            onNotice={setNotice}
+                                        />
+                                    )}
 
-                                {state.activeSection === 'harness-setup' && (
-                                    <HarnessSetupView onCopy={copySnippet} />
-                                )}
+                                    {state.activeSection === 'harness-setup' && (
+                                        <HarnessSetupView onCopy={copySnippet} />
+                                    )}
 
-                                {state.activeSection === 'services' && (
-                                    <ServicesView
-                                        state={state}
-                                        onTest={() => {
-                                            run(() => window.navita.testConnection());
-                                        }}
-                                    />
-                                )}
+                                    {state.activeSection === 'services' && (
+                                        <ServicesView
+                                            state={state}
+                                            onTest={() => {
+                                                run(() => window.navita.testConnection());
+                                            }}
+                                        />
+                                    )}
+                                </div>
                             </main>
                         </>
                     )}

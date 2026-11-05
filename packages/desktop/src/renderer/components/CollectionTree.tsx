@@ -13,6 +13,7 @@ import { parseCollectionTrail, pluginCrumb, pluginTypeCrumb } from '../collectio
 import { CapNotice, FilterBox, useListFilter } from '../filter';
 import { useTrail } from '../navigation';
 import { CopyButton } from './CopyButton';
+import { DrillButton } from './DrillButton';
 import { createPluginDocBridge } from './pluginDocBridge';
 
 export interface CollectionTreeProps {
@@ -304,14 +305,13 @@ export function CollectionTree(props: CollectionTreeProps): JSX.Element {
                                     {String(item.count)} plugin{item.count === 1 ? '' : 's'}
                                 </span>
                             </div>
-                            <button
-                                className="ghost"
-                                onClick={() => {
+                            <DrillButton
+                                label={`${collection} ${item.type}`}
+                                title={`Open ${item.type} plugins`}
+                                onOpen={() => {
                                     push(pluginTypeCrumb(collection, item.type));
                                 }}
-                            >
-                                Open
-                            </button>
+                            />
                         </li>
                     ))}
                 </ul>

@@ -5,6 +5,7 @@ import { collectionCrumb, parseCollectionTrail } from '../collectionPath';
 import { CapNotice, FilterBox, useListFilter } from '../filter';
 import { useTrail } from '../navigation';
 import { CollectionTree } from './CollectionTree';
+import { DrillButton } from './DrillButton';
 
 export interface CollectionsViewProps {
     /** Called with a label once a prompt is copied. */
@@ -116,14 +117,12 @@ export function CollectionsView(props: CollectionsViewProps): JSX.Element {
                                     </span>
                                 </div>
                                 <span className="item-tag">{item.version}</span>
-                                <button
-                                    className="ghost"
-                                    onClick={() => {
+                                <DrillButton
+                                    label={item.name}
+                                    onOpen={() => {
                                         push(collectionCrumb(item.name));
                                     }}
-                                >
-                                    Open
-                                </button>
+                                />
                             </li>
                         ))}
                     </ul>
