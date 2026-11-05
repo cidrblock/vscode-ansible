@@ -636,12 +636,56 @@ button {
     --host-error: var(--err);
 }
 
-.creator-form {
+.view-header {
     display: flex;
-    flex-direction: column;
-    gap: 12px;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
 }
 
-.creator-form > .ghost {
-    align-self: flex-start;
+.back-button {
+    flex: none;
+}
+
+.back-spacer {
+    flex: none;
+    width: 26px;
+}
+
+.breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: 13px;
+}
+
+.crumb {
+    max-width: 34ch;
+    overflow: hidden;
+    padding: 2px 4px;
+    font-size: 13px;
+    color: var(--fg-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.crumb:not(:disabled):hover {
+    color: var(--fg);
+    background: var(--bg-input);
+}
+
+.crumb:disabled {
+    cursor: default;
+    color: var(--fg);
+}
+
+.crumb:last-child {
+    font-weight: 600;
+}
+
+.crumb-separator {
+    color: var(--fg-muted);
 }

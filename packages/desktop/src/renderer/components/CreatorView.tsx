@@ -4,6 +4,7 @@ import { buildPreviewString } from '@ansible/common';
 import { BridgeProvider, CreatorFormView, type SchemaNode } from '@ansible/ui';
 
 import type { CreatorCommandEntry, CreatorResult } from '../../shared/ipc';
+import { useTrail } from '../navigation';
 import { CopyButton } from './CopyButton';
 import { createCreatorBridge } from './creatorBridge';
 
@@ -69,7 +70,7 @@ function commandNode(schema: SchemaNode | null | undefined, path: string): Schem
 export function CreatorView(props: CreatorViewProps): JSX.Element {
     const { workspacePath, onCopied, onNotice } = props;
     const [result, setResult] = useState<CreatorResult | null>(null);
-    const [open, setOpen] = useState<{ path: string[]; schema: SchemaNode } | null>(null);
+    const { trail, push, reset } = useTrail('creator');
 
     const load = useCallback(() => {
         setResult(null);
@@ -97,34 +98,37 @@ export function CreatorView(props: CreatorViewProps): JSX.Element {
             createCreatorBridge({
                 workspacePath: workspacePath ?? '',
                 showToast: onNotice,
-                cancel: () => {
-                    setOpen(null);
-                },
+                cancel: reset,
             }),
-        [workspacePath, onNotice],
+        [workspacePath, onNotice, reset],
     );
 
-    if (open !== null) {
-        const command = open.path;
-        const schema = open.schema;
+    // The trail, not local state, says whether a form is open: Back and the
+    // breadcrumbs are shared by every view.
+    const open = trail.at(-1);
+    const schema = open === undefined ? null : commandNode(result?.schema, open.id);
+
+    // A trail from a previous schema (an upgrade removed the command) would
+    // otherwise strand the user on a form that cannot be built.
+    useEffect(() => {
+        if (open !== undefined && result?.state === 'ready' && schema === null) {
+            reset();
+        }
+    }, [open, schema, result, reset]);
+
+    if (open !== undefined) {
+        if (schema === null) {
+            return <p className="muted">Reading the creator schema…</p>;
+        }
+        const command = open.id.split(' ');
         return (
-            <div className="creator-form">
-                <button
-                    className="ghost"
-                    onClick={() => {
-                        setOpen(null);
-                    }}
-                >
-                    ← Commands
-                </button>
-                <BridgeProvider value={bridge}>
-                    <CreatorFormView
-                        commandPath={command}
-                        schema={schema}
-                        buildPreview={(values) => buildPreviewString(command, schema, values)}
-                    />
-                </BridgeProvider>
-            </div>
+            <BridgeProvider value={bridge}>
+                <CreatorFormView
+                    commandPath={command}
+                    schema={schema}
+                    buildPreview={(values) => buildPreviewString(command, schema, values)}
+                />
+            </BridgeProvider>
         );
     }
 
@@ -184,10 +188,7 @@ export function CreatorView(props: CreatorViewProps): JSX.Element {
                                             }
                                             onClick={() => {
                                                 if (schema !== null) {
-                                                    setOpen({
-                                                        path: command.path.split(' '),
-                                                        schema,
-                                                    });
+                                                    push({ id: command.path, label: command.path });
                                                 }
                                             }}
                                         >

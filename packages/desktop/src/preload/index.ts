@@ -73,6 +73,15 @@ const bridge: NavitaBridge = {
         };
     },
     openPath: (target: string) => ipcRenderer.invoke(IPC.openPath, target) as Promise<void>,
+    onNavigateBack: (listener: () => void) => {
+        const handler = (): void => {
+            listener();
+        };
+        ipcRenderer.on(IPC.navigateBack, handler);
+        return () => {
+            ipcRenderer.removeListener(IPC.navigateBack, handler);
+        };
+    },
     getCollectionSources: () =>
         ipcRenderer.invoke(IPC.getCollectionSources) as Promise<CollectionSourcesResult>,
     onStateChanged: (listener: (state: AppState) => void) => {

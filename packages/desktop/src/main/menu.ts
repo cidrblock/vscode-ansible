@@ -105,6 +105,7 @@ export function buildMenuTemplate(context: MenuContext): MenuItemSpec[] {
     const viewMenu: MenuItemSpec = {
         label: '&View',
         submenu: [
+            { label: 'Back', accelerator: 'Alt+Left', action: 'back' },
             { label: 'Toggle Sidebar', accelerator: 'CmdOrCtrl+B', action: 'toggle-sidebar' },
             { type: 'separator' },
             ...sectionMenuItems(activeSection),

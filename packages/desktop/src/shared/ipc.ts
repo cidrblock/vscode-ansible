@@ -33,6 +33,7 @@ export const IPC = {
     creatorStarted: 'navita:creator-started',
     creatorFinished: 'navita:creator-finished',
     openPath: 'navita:open-path',
+    navigateBack: 'navita:navigate-back',
 } as const;
 
 /** Sidebar sections, in the order they are ported from the extension views. */
@@ -202,6 +203,7 @@ export type MenuAction =
     | { readonly id: 'reveal-workspace' }
     | { readonly id: 'show-section'; readonly section: SectionId }
     | { readonly id: 'toggle-sidebar' }
+    | { readonly id: 'back' }
     | { readonly id: 'copy-snippet'; readonly harness: HarnessId }
     | { readonly id: 'test-connection' }
     | { readonly id: 'about' }
@@ -421,6 +423,7 @@ export interface NavitaBridge {
     onCreatorStarted(listener: (event: CreatorStartedEvent) => void): () => void;
     onCreatorFinished(listener: (event: CreatorFinishedEvent) => void): () => void;
     openPath(target: string): Promise<void>;
+    onNavigateBack(listener: () => void): () => void;
     getCollectionSources(): Promise<CollectionSourcesResult>;
     onStateChanged(listener: (state: AppState) => void): () => void;
     onToggleSidebar(listener: () => void): () => void;

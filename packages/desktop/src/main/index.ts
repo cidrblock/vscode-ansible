@@ -332,6 +332,9 @@ async function handleAction(action: string, actionArg?: string): Promise<void> {
         case 'toggle-sidebar':
             mainWindow?.webContents.send(IPC.toggleSidebar);
             return;
+        case 'back':
+            mainWindow?.webContents.send(IPC.navigateBack);
+            return;
         case 'copy-snippet':
             if (actionArg !== undefined) {
                 void clipboard.writeText(snippetFor(actionArg as HarnessId));

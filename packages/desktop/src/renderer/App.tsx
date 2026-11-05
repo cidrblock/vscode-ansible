@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type JSX } from 'react';
+import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
 
 import { SECTIONS, type AppState, type HarnessId, type SectionId } from '../shared/ipc';
 import { CollectionsView } from './components/CollectionsView';
@@ -13,8 +13,17 @@ import { EnvironmentsView } from './components/EnvironmentsView';
 import { SkillsView } from './components/SkillsView';
 import { ToolsView } from './components/ToolsView';
 import { Sidebar } from './components/Sidebar';
+import { ViewHeader } from './components/ViewHeader';
 import { StatusPill } from './components/StatusPill';
 import { Welcome } from './components/Welcome';
+import {
+    emptyTrails,
+    NavigationProvider,
+    popCrumb,
+    trailFor,
+    truncateTrail,
+    type Trails,
+} from './navigation';
 
 /**
  * Render an unknown thrown value as a human readable message.
@@ -33,6 +42,7 @@ export function App(): JSX.Element {
     const [state, setState] = useState<AppState | null>(null);
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [notice, setNotice] = useState<string | null>(null);
+    const [trails, setTrails] = useState<Trails>(emptyTrails);
 
     useEffect(() => {
         let active = true;
@@ -103,133 +113,203 @@ export function App(): JSX.Element {
         setNotice(`Prompt copied for ${label}.`);
     }, []);
 
+    const activeSection = state?.activeSection;
+    const trail = activeSection === undefined ? [] : trailFor(trails, activeSection);
+    const sectionLabel =
+        activeSection === undefined
+            ? ''
+            : (SECTIONS.find((section) => section.id === activeSection)?.label ?? '');
+
+    const updateTrails = useCallback((change: (current: Trails) => Trails) => {
+        setTrails(change);
+    }, []);
+
+    const navigation = useMemo(() => ({ trails, update: updateTrails }), [trails, updateTrails]);
+
+    const back = useCallback(() => {
+        if (activeSection === undefined) {
+            return;
+        }
+        setTrails((current) => popCrumb(current, activeSection));
+    }, [activeSection]);
+
+    const goToDepth = useCallback(
+        (depth: number) => {
+            if (activeSection === undefined) {
+                return;
+            }
+            setTrails((current) => truncateTrail(current, activeSection, depth));
+        },
+        [activeSection],
+    );
+
+    // A different workspace means every trail points at data that no longer exists.
+    const workspacePath = state?.workspace?.path;
+    useEffect(() => {
+        setTrails(emptyTrails());
+    }, [workspacePath]);
+
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent): void => {
+            if (event.key !== 'Escape' || event.defaultPrevented) {
+                return;
+            }
+            const target = event.target;
+            const typing =
+                target instanceof HTMLElement &&
+                (target.tagName === 'INPUT' ||
+                    target.tagName === 'TEXTAREA' ||
+                    target.tagName === 'SELECT' ||
+                    target.isContentEditable);
+            if (!typing) {
+                back();
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => {
+            window.removeEventListener('keydown', onKeyDown);
+        };
+    }, [back]);
+
+    useEffect(() => window.navita.onNavigateBack(back), [back]);
+
     if (state === null) {
         return <div className="loading">Starting navita…</div>;
     }
 
     return (
-        <div className="app">
-            <header className="topbar">
-                <span className="brand">navita</span>
-            </header>
+        <NavigationProvider value={navigation}>
+            <div className="app">
+                <header className="topbar">
+                    <span className="brand">navita</span>
+                </header>
 
-            <div className="body">
-                {state.workspace === null ? (
-                    <Welcome
-                        recents={state.recents}
-                        onOpen={() => {
-                            run(() => window.navita.openWorkspace());
-                        }}
-                        onActivate={(workspacePath) => {
-                            run(() => window.navita.activateWorkspace(workspacePath));
-                        }}
-                    />
-                ) : (
-                    <>
-                        {sidebarOpen && (
-                            <Sidebar
-                                sections={SECTIONS}
-                                activeSection={state.activeSection}
-                                onSelect={selectSection}
-                                workspace={state.workspace}
-                                recents={state.recents}
-                                onOpenWorkspace={() => {
-                                    run(() => window.navita.openWorkspace());
-                                }}
-                                onActivateWorkspace={(workspacePath) => {
-                                    run(() => window.navita.activateWorkspace(workspacePath));
-                                }}
-                                onRescanWorkspace={() => {
-                                    run(() => window.navita.rescanWorkspace());
-                                }}
-                            />
-                        )}
-                        <main className="pane">
-                            <h1>{state.workspace.name}</h1>
-                            <p className="muted">{state.workspace.path}</p>
-
-                            {state.activeSection === 'dev-tools' && <DevToolsView />}
-
-                            {state.activeSection === 'env-managers' && (
-                                <EnvironmentsView workspacePath={state.workspace.path} />
-                            )}
-
-                            {state.activeSection === 'ai-tools' && (
-                                <ToolsView onCopied={handleCopied} />
-                            )}
-
-                            {state.activeSection === 'ai-skills' && (
-                                <SkillsView onCopied={handleCopied} />
-                            )}
-
-                            {state.activeSection === 'execution-environments' && (
-                                <ExecutionEnvironmentsView />
-                            )}
-
-                            {state.activeSection === 'installed-collections' && <CollectionsView />}
-
-                            {state.activeSection === 'playbooks' && (
-                                <PlaybooksView
-                                    workspacePath={state.workspace.path}
-                                    onCopied={handleCopied}
-                                />
-                            )}
-
-                            {state.activeSection === 'creator' && (
-                                <CreatorView
-                                    workspacePath={state.workspace.path}
-                                    onCopied={handleCopied}
-                                    onNotice={setNotice}
-                                />
-                            )}
-
-                            {state.activeSection === 'collection-sources' && (
-                                <CollectionSourcesView onCopied={handleCopied} />
-                            )}
-
-                            {state.activeSection === 'harness-setup' && (
-                                <HarnessSetupView onCopy={copySnippet} />
-                            )}
-
-                            {state.activeSection === 'services' && (
-                                <ServicesView
-                                    state={state}
-                                    onTest={() => {
-                                        run(() => window.navita.testConnection());
+                <div className="body">
+                    {state.workspace === null ? (
+                        <Welcome
+                            recents={state.recents}
+                            onOpen={() => {
+                                run(() => window.navita.openWorkspace());
+                            }}
+                            onActivate={(workspacePath) => {
+                                run(() => window.navita.activateWorkspace(workspacePath));
+                            }}
+                        />
+                    ) : (
+                        <>
+                            {sidebarOpen && (
+                                <Sidebar
+                                    sections={SECTIONS}
+                                    activeSection={state.activeSection}
+                                    onSelect={selectSection}
+                                    workspace={state.workspace}
+                                    recents={state.recents}
+                                    onOpenWorkspace={() => {
+                                        run(() => window.navita.openWorkspace());
+                                    }}
+                                    onActivateWorkspace={(workspacePath) => {
+                                        run(() => window.navita.activateWorkspace(workspacePath));
+                                    }}
+                                    onRescanWorkspace={() => {
+                                        run(() => window.navita.rescanWorkspace());
                                     }}
                                 />
                             )}
-                        </main>
-                    </>
-                )}
+                            <main className="pane">
+                                <ViewHeader
+                                    label={sectionLabel}
+                                    trail={trail}
+                                    onBack={back}
+                                    onCrumb={goToDepth}
+                                />
+
+                                {state.activeSection === 'dev-tools' && <DevToolsView />}
+
+                                {state.activeSection === 'env-managers' && (
+                                    <EnvironmentsView workspacePath={state.workspace.path} />
+                                )}
+
+                                {state.activeSection === 'ai-tools' && (
+                                    <ToolsView onCopied={handleCopied} />
+                                )}
+
+                                {state.activeSection === 'ai-skills' && (
+                                    <SkillsView onCopied={handleCopied} />
+                                )}
+
+                                {state.activeSection === 'execution-environments' && (
+                                    <ExecutionEnvironmentsView />
+                                )}
+
+                                {state.activeSection === 'installed-collections' && (
+                                    <CollectionsView />
+                                )}
+
+                                {state.activeSection === 'playbooks' && (
+                                    <PlaybooksView
+                                        workspacePath={state.workspace.path}
+                                        onCopied={handleCopied}
+                                    />
+                                )}
+
+                                {state.activeSection === 'creator' && (
+                                    <CreatorView
+                                        workspacePath={state.workspace.path}
+                                        onCopied={handleCopied}
+                                        onNotice={setNotice}
+                                    />
+                                )}
+
+                                {state.activeSection === 'collection-sources' && (
+                                    <CollectionSourcesView onCopied={handleCopied} />
+                                )}
+
+                                {state.activeSection === 'harness-setup' && (
+                                    <HarnessSetupView onCopy={copySnippet} />
+                                )}
+
+                                {state.activeSection === 'services' && (
+                                    <ServicesView
+                                        state={state}
+                                        onTest={() => {
+                                            run(() => window.navita.testConnection());
+                                        }}
+                                    />
+                                )}
+                            </main>
+                        </>
+                    )}
+                </div>
+
+                <footer className="statusbar">
+                    <span>
+                        MCP: <StatusPill state={state.mcp.state} />
+                    </span>
+                    <span>
+                        LSP: <StatusPill state={state.lsp.state} />
+                    </span>
+                    <span className="spacer" />
+                    {state.workspace !== null && (
+                        <span className="status-path" title={state.workspace.path}>
+                            {state.workspace.path}
+                        </span>
+                    )}
+                    {state.workspace !== null && (
+                        <span
+                            className="status-env"
+                            title={
+                                state.environment?.pythonPath ?? 'No Python environment resolved'
+                            }
+                        >
+                            <span className="muted">Python</span>
+                            {state.environment?.name ?? '—'}
+                        </span>
+                    )}
+                    <span className="muted">0.0.1</span>
+                </footer>
+
+                {notice !== null && <div className="toast">{notice}</div>}
             </div>
-
-            <footer className="statusbar">
-                <span>
-                    MCP: <StatusPill state={state.mcp.state} />
-                </span>
-                <span>
-                    LSP: <StatusPill state={state.lsp.state} />
-                </span>
-                <span className="spacer" />
-                {state.workspace !== null && (
-                    <span className="status-path" title={state.workspace.path}>
-                        {state.workspace.path}
-                    </span>
-                )}
-                {state.workspace !== null && (
-                    <span
-                        className="status-env"
-                        title={state.environment?.pythonPath ?? 'No Python environment resolved'}
-                    >
-                        <span className="muted">Python</span>
-                        {state.environment?.name ?? '—'}
-                    </span>
-                )}
-                <span className="muted">0.0.1</span>
-            </footer>
-
-            {notice !== null && <div className="toast">{notice}</div>}
-        </div>
+        </NavigationProvider>
     );
 }

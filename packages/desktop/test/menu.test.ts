@@ -64,6 +64,12 @@ describe('buildMenuTemplate', () => {
         expect(sectionItems.filter((item) => item.checked === true)).toHaveLength(1);
     });
 
+    it('offers Back in the View menu on Alt+Left', () => {
+        const back = find(menu({}), 'Back');
+        expect(back?.action).toBe('back');
+        expect(back?.accelerator).toBe('Alt+Left');
+    });
+
     it('shows a disabled placeholder when there are no recents', () => {
         const recent = find(menu({}), 'Open Recent');
         expect(recent?.submenu).toHaveLength(1);
