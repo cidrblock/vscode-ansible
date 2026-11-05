@@ -23,6 +23,8 @@ export const IPC = {
     selectEnvironment: 'navita:select-environment',
     getTools: 'navita:get-tools',
     getCollections: 'navita:get-collections',
+    getCollectionPlugins: 'navita:get-collection-plugins',
+    getPluginDoc: 'navita:get-plugin-doc',
     getExecutionEnvironments: 'navita:get-execution-environments',
     getPlaybooks: 'navita:get-playbooks',
     getCreator: 'navita:get-creator',
@@ -328,17 +330,56 @@ export interface SkillsResult {
     readonly detail?: string;
 }
 
+/** One plugin type in a collection, with how many plugins it holds. */
+export interface CollectionPluginType {
+    /** Type as ansible-doc names it: `module`, `filter`, `lookup`, … */
+    readonly type: string;
+    readonly count: number;
+}
+
 export interface CollectionEntry {
     readonly name: string;
     readonly version: string;
     readonly description?: string;
     readonly path?: string;
     readonly pluginCount: number;
+    /** Plugin types the collection ships, ordered by name. */
+    readonly pluginTypes: readonly CollectionPluginType[];
 }
 
 export interface CollectionsResult {
     readonly state: 'ready' | 'error';
     readonly collections: readonly CollectionEntry[];
+    readonly detail?: string;
+}
+
+/** One plugin inside a collection. */
+export interface PluginEntry {
+    /** Short name, as `copy`. */
+    readonly name: string;
+    /** Fully qualified name, as `ansible.builtin.copy`. */
+    readonly fullName: string;
+    readonly shortDescription: string;
+    /** AI explanation prompt for this plugin. */
+    readonly prompt: string;
+}
+
+export interface CollectionPluginsResult {
+    readonly state: 'ready' | 'error';
+    readonly plugins: readonly PluginEntry[];
+    readonly detail?: string;
+}
+
+/**
+ * Documentation for one plugin.
+ *
+ * `data` is the `PluginData` payload from `@ansible/ui` — the shared doc view
+ * consumes it directly. It is typed `unknown` here because this contract is
+ * also compiled by the main process, which does not resolve that package.
+ */
+export interface PluginDocResult {
+    readonly state: 'ready' | 'error';
+    readonly data?: unknown;
     readonly detail?: string;
 }
 
@@ -480,6 +521,8 @@ export interface NavitaBridge {
     getSkills(): Promise<SkillsResult>;
     copyText(text: string): Promise<void>;
     getCollections(): Promise<CollectionsResult>;
+    getCollectionPlugins(collection: string, pluginType: string): Promise<CollectionPluginsResult>;
+    getPluginDoc(fqcn: string, pluginType: string): Promise<PluginDocResult>;
     getExecutionEnvironments(): Promise<ExecutionEnvironmentsResult>;
     getPlaybooks(workspacePath: string | null): Promise<PlaybooksResult>;
     getCreator(): Promise<CreatorResult>;

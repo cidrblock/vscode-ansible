@@ -314,7 +314,7 @@ export function App(): JSX.Element {
                                 )}
 
                                 {state.activeSection === 'installed-collections' && (
-                                    <CollectionsView />
+                                    <CollectionsView onCopied={handleCopied} onNotice={setNotice} />
                                 )}
 
                                 {state.activeSection === 'playbooks' && (

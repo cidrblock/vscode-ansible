@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { MISSING_ANSIBLE_DOC, loadCollections, toCollectionEntries } from '../src/main/collections';
+import {
+    loadCollectionPlugins,
+    loadCollections,
+    MISSING_ANSIBLE_DOC,
+    toCollectionEntries,
+} from '../src/main/collections';
 
 const collection = (
     name: string,
@@ -52,6 +57,56 @@ describe('toCollectionEntries', () => {
     it('returns an empty list when nothing is installed', () => {
         expect(toCollectionEntries([])).toEqual([]);
     });
+
+    it('reports plugin types with their counts, ordered by name', () => {
+        const entries = toCollectionEntries([
+            {
+                info: {
+                    name: 'ansible.builtin',
+                    version: '2.22.0',
+                    authors: ['Ansible'],
+                    description: 'Core modules',
+                },
+                pluginTypes: new Map([
+                    [
+                        'module',
+                        [{ name: 'copy', fullName: 'ansible.builtin.copy', shortDescription: 'd' }],
+                    ],
+                    [
+                        'filter',
+                        [
+                            {
+                                name: 'b64decode',
+                                fullName: 'ansible.builtin.b64decode',
+                                shortDescription: 'd',
+                            },
+                        ],
+                    ],
+                    [
+                        'test',
+                        [
+                            {
+                                name: 'match',
+                                fullName: 'ansible.builtin.match',
+                                shortDescription: 'd',
+                            },
+                            {
+                                name: 'search',
+                                fullName: 'ansible.builtin.search',
+                                shortDescription: 'd',
+                            },
+                        ],
+                    ],
+                ]),
+            },
+        ]);
+
+        expect(entries[0].pluginTypes).toEqual([
+            { type: 'filter', count: 1 },
+            { type: 'module', count: 1 },
+            { type: 'test', count: 2 },
+        ]);
+    });
 });
 
 describe('loadCollections', () => {
@@ -61,5 +116,15 @@ describe('loadCollections', () => {
         expect(result.state).toBe('error');
         expect(result.collections).toEqual([]);
         expect(result.detail).toBe(MISSING_ANSIBLE_DOC);
+    });
+});
+
+describe('loadCollectionPlugins', () => {
+    it('reports an error instead of an empty list when the collection is not loaded', () => {
+        const result = loadCollectionPlugins('no.such', 'module');
+
+        expect(result.state).toBe('error');
+        expect(result.plugins).toEqual([]);
+        expect(result.detail).toContain('no.such');
     });
 });

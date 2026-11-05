@@ -379,6 +379,32 @@ if (process.exitCode !== 1) {
         );
     }
 
+    if (collections.state !== 'error') {
+        // Levels two to four of the collection drill-down: types, plugins, docs.
+        const first = collections.collections.find((entry) => entry.pluginTypes.length > 0);
+        if (first === undefined) {
+            fail('collections: no collection reported any plugin type');
+        } else {
+            const typeEntry = first.pluginTypes.find((entry) => entry.type === 'module') ??
+                first.pluginTypes[0];
+            const pluginList = collectionsModule.loadCollectionPlugins(first.name, typeEntry.type);
+            if (pluginList.state === 'error' || pluginList.plugins.length === 0) {
+                fail(`collection plugins: ${pluginList.detail ?? 'no plugins listed'}`);
+            } else {
+                const sample = pluginList.plugins[0];
+                const doc = await collectionsModule.loadPluginDoc(sample.fullName, typeEntry.type);
+                if (doc.state === 'error') {
+                    fail(`plugin doc: ${doc.detail}`);
+                } else {
+                    const optionCount = Object.keys(doc.data?.doc?.options ?? {}).length;
+                    console.log(
+                        `PASS  collections-tree  ${first.name} → ${typeEntry.type}(${String(typeEntry.count)}) → ${sample.fullName}, doc with ${String(optionCount)} option(s)`,
+                    );
+                }
+            }
+        }
+    }
+
     const eeModule = await bundleModule('executionEnvironments.ts', 'execution-environments');
     const executionEnvironments = await eeModule.loadExecutionEnvironments();
     if (executionEnvironments.state === 'error') {

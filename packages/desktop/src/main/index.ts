@@ -34,7 +34,7 @@ import {
     summarizeEnvironment,
 } from './environment';
 import { loadEnvironments } from './environments';
-import { loadCollections } from './collections';
+import { loadCollectionPlugins, loadCollections, loadPluginDoc } from './collections';
 import { loadExecutionEnvironments } from './executionEnvironments';
 import { loadPlaybooks } from './playbooks';
 import { findSchemaNode, loadCreator } from './creator';
@@ -491,6 +491,12 @@ function registerIpc(): void {
     ipcMain.handle(IPC.getSkills, () => loadSkills(serverScripts().skills));
     ipcMain.handle(IPC.copyText, (_event, text: string) => clipboard.writeText(text));
     ipcMain.handle(IPC.getCollections, () => loadCollections());
+    ipcMain.handle(IPC.getCollectionPlugins, (_event, collection: string, pluginType: string) =>
+        loadCollectionPlugins(collection, pluginType),
+    );
+    ipcMain.handle(IPC.getPluginDoc, (_event, fqcn: string, pluginType: string) =>
+        loadPluginDoc(fqcn, pluginType),
+    );
     ipcMain.handle(IPC.getExecutionEnvironments, () => loadExecutionEnvironments());
     ipcMain.handle(IPC.getPlaybooks, (_event, workspacePath: string | null) =>
         loadPlaybooks(workspacePath),

@@ -6,10 +6,20 @@
  * a payload the renderer can hold.
  */
 
-import { CollectionsService, getCommandService } from '@ansible/developer-services';
+import {
+    buildPluginExplanationPrompt,
+    CollectionsService,
+    getCommandService,
+} from '@ansible/developer-services';
 import type { CollectionData } from '@ansible/developer-services';
 
-import type { CollectionEntry, CollectionsResult } from '../shared/ipc';
+import type {
+    CollectionEntry,
+    CollectionPluginsResult,
+    CollectionsResult,
+    PluginDocResult,
+    PluginEntry,
+} from '../shared/ipc';
 
 /** Shown when the environment cannot answer because ansible-doc is missing. */
 export const MISSING_ANSIBLE_DOC =
@@ -28,10 +38,14 @@ export function toCollectionEntries(collections: Iterable<CollectionData>): Coll
             (total, plugins) => total + plugins.length,
             0,
         );
+        const pluginTypes = [...collection.pluginTypes.entries()]
+            .map(([type, plugins]) => ({ type, count: plugins.length }))
+            .sort((left, right) => left.type.localeCompare(right.type));
         entries.push({
             name: collection.info.name,
             version: collection.info.version,
             pluginCount,
+            pluginTypes,
             ...(collection.info.description === ''
                 ? {}
                 : { description: collection.info.description }),
@@ -68,6 +82,65 @@ export async function loadCollections(
         return {
             state: 'error',
             collections: [],
+            detail: error instanceof Error ? error.message : String(error),
+        };
+    }
+}
+
+/**
+ * List the plugins of one type inside one collection.
+ *
+ * The service already holds the parsed metadata, so this is a map lookup plus
+ * a prompt per row; the view fetches it when a type is opened rather than
+ * carrying every plugin of every collection in the root payload.
+ * @param collection - Fully qualified collection name.
+ * @param pluginType - Plugin type to list, as `module` or `filter`.
+ * @returns The plugins, or an error when the collection is not loaded.
+ */
+export function loadCollectionPlugins(
+    collection: string,
+    pluginType: string,
+): CollectionPluginsResult {
+    const service = CollectionsService.getInstance();
+    if (service.getCollection(collection) === undefined) {
+        return {
+            state: 'error',
+            plugins: [],
+            detail: `Collection ${collection} is not loaded. Refresh the view and try again.`,
+        };
+    }
+    const plugins: PluginEntry[] = service.getPlugins(collection, pluginType).map((plugin) => ({
+        name: plugin.name,
+        fullName: plugin.fullName,
+        shortDescription: plugin.shortDescription,
+        prompt: buildPluginExplanationPrompt(plugin.fullName, pluginType),
+    }));
+    return { state: 'ready', plugins };
+}
+
+/**
+ * Documentation for one plugin, straight from `ansible-doc`.
+ *
+ * The payload is passed through untouched: `PluginDocView` from `@ansible/ui`
+ * is the only consumer, and it expects exactly this shape.
+ * @param fqcn - Fully qualified plugin name.
+ * @param pluginType - Plugin type, used to pick the `ansible-doc` flag.
+ * @returns The documentation payload, or an error when ansible-doc has none.
+ */
+export async function loadPluginDoc(fqcn: string, pluginType: string): Promise<PluginDocResult> {
+    const service = CollectionsService.getInstance();
+    try {
+        const data = await service.getPluginDocumentation(fqcn, pluginType);
+        if (data === null) {
+            return {
+                state: 'error',
+                detail: `ansible-doc returned no documentation for ${fqcn}.`,
+            };
+        }
+        return { state: 'ready', data };
+    } catch (error: unknown) {
+        return {
+            state: 'error',
             detail: error instanceof Error ? error.message : String(error),
         };
     }
