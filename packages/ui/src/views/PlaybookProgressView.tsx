@@ -283,7 +283,10 @@ export function PlaybookProgressView() {
                     const hostEntry = task.hosts[host] as HostResult | undefined;
                     task.hosts[host] = {
                         ...hostEntry,
-                        status: itemFinalStatus === 'failed' ? 'failed' : hostEntry?.status,
+                        status:
+                            itemFinalStatus === 'failed'
+                                ? 'failed'
+                                : (hostEntry?.status ?? itemFinalStatus),
                         result: data.result != null ? obj('result') : undefined,
                     };
                     task.status = computeTaskStatus(task.hosts);

@@ -70,6 +70,17 @@ async function buildRenderer() {
         root: path.join(PKG, 'src', 'renderer'),
         base: './',
         esbuild: { jsx: 'automatic' },
+        resolve: {
+            alias: [
+                // Same reason as the esbuild aliases above: consume workspace
+                // sources, not stale build output.
+                { find: /^@ansible\/ui$/, replacement: path.join(REPO, 'packages', 'ui', 'src', 'index.ts') },
+                {
+                    find: /^@ansible\/common$/,
+                    replacement: path.join(REPO, 'packages', 'common', 'src', 'index.ts'),
+                },
+            ],
+        },
         logLevel: 'info',
         build: {
             outDir: path.relative(path.join(PKG, 'src', 'renderer'), path.join(DIST, 'renderer')),

@@ -19,6 +19,8 @@ import {
     type CollectionSourcesResult,
     type SkillsResult,
     type ToolsResult,
+    type CreatorFinishedEvent,
+    type CreatorStartedEvent,
     type HarnessId,
     type NavitaBridge,
     type SectionId,
@@ -50,6 +52,27 @@ const bridge: NavitaBridge = {
     getPlaybooks: (workspacePath: string | null) =>
         ipcRenderer.invoke(IPC.getPlaybooks, workspacePath) as Promise<PlaybooksResult>,
     getCreator: () => ipcRenderer.invoke(IPC.getCreator) as Promise<CreatorResult>,
+    runCreator: (path: readonly string[], values: Record<string, unknown>) =>
+        ipcRenderer.invoke(IPC.runCreator, { path, values }) as Promise<void>,
+    onCreatorStarted: (listener: (event: CreatorStartedEvent) => void) => {
+        const handler = (_event: IpcRendererEvent, payload: CreatorStartedEvent): void => {
+            listener(payload);
+        };
+        ipcRenderer.on(IPC.creatorStarted, handler);
+        return () => {
+            ipcRenderer.removeListener(IPC.creatorStarted, handler);
+        };
+    },
+    onCreatorFinished: (listener: (event: CreatorFinishedEvent) => void) => {
+        const handler = (_event: IpcRendererEvent, payload: CreatorFinishedEvent): void => {
+            listener(payload);
+        };
+        ipcRenderer.on(IPC.creatorFinished, handler);
+        return () => {
+            ipcRenderer.removeListener(IPC.creatorFinished, handler);
+        };
+    },
+    openPath: (target: string) => ipcRenderer.invoke(IPC.openPath, target) as Promise<void>,
     getCollectionSources: () =>
         ipcRenderer.invoke(IPC.getCollectionSources) as Promise<CollectionSourcesResult>,
     onStateChanged: (listener: (state: AppState) => void) => {

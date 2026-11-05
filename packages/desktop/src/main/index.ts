@@ -8,6 +8,7 @@
 
 import { app, BrowserWindow, Menu, clipboard, dialog, ipcMain, shell } from 'electron';
 import type { MenuItemConstructorOptions } from 'electron';
+import { buildCommandArgs, CommandService, CreatorService } from '@ansible/developer-services';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -34,7 +35,7 @@ import { loadEnvironments } from './environments';
 import { loadCollections } from './collections';
 import { loadExecutionEnvironments } from './executionEnvironments';
 import { loadPlaybooks } from './playbooks';
-import { loadCreator } from './creator';
+import { findSchemaNode, loadCreator } from './creator';
 import { loadCollectionSources } from './collectionSources';
 import { loadSkills } from './skills';
 import { invalidateToolCache, loadTools } from './tools';
@@ -433,6 +434,51 @@ function registerIpc(): void {
         loadPlaybooks(workspacePath),
     );
     ipcMain.handle(IPC.getCreator, () => loadCreator());
+    ipcMain.handle(IPC.runCreator, async (event, request: unknown) => {
+        const { path: commandPath, values } = (request ?? {}) as {
+            path?: unknown;
+            values?: unknown;
+        };
+        if (!Array.isArray(commandPath) || !commandPath.every((part) => typeof part === 'string')) {
+            throw new Error('invalid ansible-creator command path');
+        }
+        const schema = CreatorService.getInstance().getSchema();
+        const node = schema === null ? undefined : findSchemaNode(schema, commandPath);
+        if (node === undefined) {
+            throw new Error(`unknown ansible-creator command: ${commandPath.join(' ')}`);
+        }
+        const args = buildCommandArgs(
+            [...commandPath],
+            node,
+            (values ?? {}) as Record<string, unknown>,
+        );
+        event.sender.send(IPC.creatorStarted, { command: `ansible-creator ${args.join(' ')}` });
+
+        const commands = CommandService.getInstance();
+        const toolPath = await commands.getToolPath('ansible-creator').catch(() => null);
+        if (toolPath === null) {
+            event.sender.send(IPC.creatorFinished, {
+                exitCode: 1,
+                output: 'ansible-creator not found. Install ansible-dev-tools in the Python environment navita uses.',
+            });
+            return;
+        }
+        try {
+            const result = await commands.runCommandArgs(toolPath, args);
+            const output = [result.stdout, result.stderr].filter(Boolean).join('\n');
+            event.sender.send(IPC.creatorFinished, { exitCode: result.exitCode, output });
+        } catch (error: unknown) {
+            event.sender.send(IPC.creatorFinished, {
+                exitCode: 1,
+                output: error instanceof Error ? error.message : String(error),
+            });
+        }
+    });
+    ipcMain.handle(IPC.openPath, async (_event, target: unknown) => {
+        if (typeof target === 'string' && target.length > 0) {
+            await shell.openPath(target);
+        }
+    });
     ipcMain.handle(IPC.getCollectionSources, () => loadCollectionSources(app.getPath('userData')));
     ipcMain.handle(IPC.testConnection, async () =>
         workspace === null ? currentState() : activateWorkspace(workspace.path),

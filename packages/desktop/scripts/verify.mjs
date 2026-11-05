@@ -162,11 +162,21 @@ const SERVICE_ALIASES = {
  * @returns Package count and state.
  */
 async function bundleModule(entry, name) {
+    return bundleSource(path.join(PKG, 'src', 'main', entry), name);
+}
+
+/**
+ * Bundle any workspace source file the way the main process build does.
+ * @param entryPath - Absolute path to the TypeScript entry.
+ * @param name - Base name for the generated CommonJS file.
+ * @returns The bundled module.
+ */
+async function bundleSource(entryPath, name) {
     const esbuild = await import('esbuild');
     const outfile = path.join(DIST, 'verify', `${name}.cjs`);
     fs.mkdirSync(path.dirname(outfile), { recursive: true });
     await esbuild.build({
-        entryPoints: [path.join(PKG, 'src', 'main', entry)],
+        entryPoints: [entryPath],
         outfile,
         bundle: true,
         platform: 'node',
@@ -377,6 +387,21 @@ if (process.exitCode !== 1) {
         console.log(
             `PASS  creator         ${creator.commands.length} commands in ${groups.join(', ')}`,
         );
+        const commonModule = await bundleSource(
+            path.join(REPO, 'packages', 'common', 'src', 'index.ts'),
+            'common',
+        );
+        const node = creatorModule.findSchemaNode(creator.schema, ['init', 'collection']);
+        if (node === undefined) {
+            fail('creator form: schema has no init collection node');
+        } else {
+            const args = commonModule.buildCommandArgs(['init', 'collection'], node, {
+                collection: 'demo.collection',
+            });
+            console.log(
+                `PASS  creator-form    ${String(node.parameters?.properties ? Object.keys(node.parameters.properties).length : 0)} fields, preview: ansible-creator ${args.join(' ')}`,
+            );
+        }
     }
 
     const sourcesModule = await bundleModule('collectionSources.ts', 'collection-sources');

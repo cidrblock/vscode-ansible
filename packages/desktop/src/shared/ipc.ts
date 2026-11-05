@@ -5,6 +5,8 @@
  * menu and the sidebar are generated from one source of truth.
  */
 
+import type { SchemaNode } from '@ansible/common';
+
 export const IPC = {
     getState: 'navita:get-state',
     stateChanged: 'navita:state-changed',
@@ -27,6 +29,10 @@ export const IPC = {
     getCollectionSources: 'navita:get-collection-sources',
     getSkills: 'navita:get-skills',
     copyText: 'navita:copy-text',
+    runCreator: 'navita:run-creator',
+    creatorStarted: 'navita:creator-started',
+    creatorFinished: 'navita:creator-finished',
+    openPath: 'navita:open-path',
 } as const;
 
 /** Sidebar sections, in the order they are ported from the extension views. */
@@ -347,7 +353,20 @@ export interface CreatorResult {
     readonly status: 'unknown' | 'not-installed' | 'outdated' | 'ready';
     readonly version?: string;
     readonly commands: readonly CreatorCommandEntry[];
+    /** Raw `ansible-creator schema` tree, used to render the dynamic form. */
+    readonly schema?: SchemaNode | null;
     readonly detail?: string;
+}
+
+/** Sent when a creator command starts, so the form can show what is running. */
+export interface CreatorStartedEvent {
+    readonly command: string;
+}
+
+/** Sent when a creator command exits, with its combined output. */
+export interface CreatorFinishedEvent {
+    readonly exitCode: number;
+    readonly output: string;
 }
 
 /** One collection in the Galaxy catalog. */
@@ -398,6 +417,10 @@ export interface NavitaBridge {
     getExecutionEnvironments(): Promise<ExecutionEnvironmentsResult>;
     getPlaybooks(workspacePath: string | null): Promise<PlaybooksResult>;
     getCreator(): Promise<CreatorResult>;
+    runCreator(path: readonly string[], values: Record<string, unknown>): Promise<void>;
+    onCreatorStarted(listener: (event: CreatorStartedEvent) => void): () => void;
+    onCreatorFinished(listener: (event: CreatorFinishedEvent) => void): () => void;
+    openPath(target: string): Promise<void>;
     getCollectionSources(): Promise<CollectionSourcesResult>;
     onStateChanged(listener: (state: AppState) => void): () => void;
     onToggleSidebar(listener: () => void): () => void;

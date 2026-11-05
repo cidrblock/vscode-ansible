@@ -616,3 +616,32 @@ button {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* Map the shared @ansible/ui tokens onto navita's palette. */
+:root {
+    --host-bg-primary: var(--bg);
+    --host-bg-surface: var(--bg-raised);
+    --host-bg-hover: var(--bg-input);
+    --host-bg-active: var(--bg-input);
+    --host-text-primary: var(--fg);
+    --host-text-secondary: var(--fg-muted);
+    --host-text-muted: var(--fg-muted);
+    --host-text-link: var(--accent);
+    --host-border: var(--border);
+    --host-border-active: var(--accent);
+    --host-accent: var(--accent);
+    --host-accent-hover: var(--accent);
+    --host-success: var(--ok);
+    --host-warning: var(--warn);
+    --host-error: var(--err);
+}
+
+.creator-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.creator-form > .ghost {
+    align-self: flex-start;
+}

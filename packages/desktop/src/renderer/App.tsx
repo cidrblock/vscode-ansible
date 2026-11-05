@@ -176,7 +176,11 @@ export function App(): JSX.Element {
                             )}
 
                             {state.activeSection === 'creator' && (
-                                <CreatorView onCopied={handleCopied} />
+                                <CreatorView
+                                    workspacePath={state.workspace.path}
+                                    onCopied={handleCopied}
+                                    onNotice={setNotice}
+                                />
                             )}
 
                             {state.activeSection === 'collection-sources' && (
