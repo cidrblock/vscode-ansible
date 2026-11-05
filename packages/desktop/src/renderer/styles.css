@@ -716,3 +716,17 @@ button {
 .crumb-current.crumb {
     cursor: default;
 }
+
+.install-output {
+    max-height: 240px;
+    margin: 10px 0 0;
+    padding: 10px 12px;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-input);
+    font-family: var(--mono, monospace);
+    font-size: 12px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}

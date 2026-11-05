@@ -24,6 +24,7 @@ import {
 } from '../shared/ipc';
 import { buildMenuTemplate, type MenuContext, type MenuItemSpec } from './menu';
 import { loadDevTools } from './devtools';
+import { installDevTools } from './installer';
 import {
     installEnvironmentResolver,
     resetEnvironmentCache,
@@ -411,6 +412,18 @@ function registerIpc(): void {
         return snippet;
     });
     ipcMain.handle(IPC.getDevTools, () => loadDevTools());
+    ipcMain.handle(IPC.installDevTools, async () => {
+        const resolved = await resolveEnvironment(workspace?.path ?? null, selectedEnvironment());
+        if (resolved === undefined) {
+            return {
+                state: 'error',
+                exitCode: 1,
+                output: 'No Python environment resolved. Pick one in Environment Managers first.',
+                packageCount: 0,
+            };
+        }
+        return installDevTools(resolved.pythonPath);
+    });
     ipcMain.handle(IPC.getEnvironments, (_event, workspacePath: string | null) =>
         loadEnvironments(
             workspacePath,

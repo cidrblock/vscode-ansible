@@ -34,6 +34,7 @@ export const IPC = {
     creatorFinished: 'navita:creator-finished',
     openPath: 'navita:open-path',
     navigateBack: 'navita:navigate-back',
+    installDevTools: 'navita:install-dev-tools',
 } as const;
 
 /** Sidebar sections, in the order they are ported from the extension views. */
@@ -230,6 +231,16 @@ export interface DevToolsResult {
     readonly detail?: string;
 }
 
+/** Outcome of installing ansible-dev-tools into the current interpreter. */
+export interface DevToolsInstallResult {
+    readonly state: 'ready' | 'error';
+    readonly exitCode: number;
+    /** Combined installer output; empty when the tool wrote nothing. */
+    readonly output: string;
+    /** Packages `adt` reported after the attempt. */
+    readonly packageCount: number;
+}
+
 export interface LocalEnvironmentEntry {
     readonly name: string;
     readonly pythonPath: string;
@@ -417,6 +428,7 @@ export interface NavitaBridge {
     copySnippet(harness: HarnessId): Promise<string>;
     testConnection(): Promise<AppState>;
     getDevTools(): Promise<DevToolsResult>;
+    installDevTools(): Promise<DevToolsInstallResult>;
     getEnvironments(workspacePath: string | null): Promise<EnvironmentGroupsResult>;
     selectEnvironment(pythonPath: string | null): Promise<AppState>;
     getTools(): Promise<ToolsResult>;

@@ -1,6 +1,6 @@
-import { useEffect, useState, type JSX } from 'react';
+import { useCallback, useEffect, useState, type JSX } from 'react';
 
-import type { AppState, DevToolsResult, SectionId } from '../../shared/ipc';
+import type { AppState, DevToolsInstallResult, DevToolsResult, SectionId } from '../../shared/ipc';
 import { StatusPill } from './StatusPill';
 
 export interface OverviewViewProps {
@@ -25,6 +25,8 @@ export interface OverviewViewProps {
 export function OverviewView(props: OverviewViewProps): JSX.Element {
     const { state, onOpenWorkspace, onRescanWorkspace, onGo } = props;
     const [devTools, setDevTools] = useState<DevToolsResult | null>(null);
+    const [installing, setInstalling] = useState(false);
+    const [installResult, setInstallResult] = useState<DevToolsInstallResult | null>(null);
 
     useEffect(() => {
         window.navita
@@ -36,6 +38,29 @@ export function OverviewView(props: OverviewViewProps): JSX.Element {
                     packages: [],
                     detail: error instanceof Error ? error.message : String(error),
                 });
+            });
+    }, []);
+
+    const install = useCallback(() => {
+        setInstalling(true);
+        setInstallResult(null);
+        window.navita
+            .installDevTools()
+            .then((result) => {
+                setInstallResult(result);
+                return window.navita.getDevTools();
+            })
+            .then(setDevTools)
+            .catch((error: unknown) => {
+                setInstallResult({
+                    state: 'error',
+                    exitCode: 1,
+                    output: error instanceof Error ? error.message : String(error),
+                    packageCount: 0,
+                });
+            })
+            .finally(() => {
+                setInstalling(false);
             });
     }, []);
 
@@ -108,17 +133,32 @@ export function OverviewView(props: OverviewViewProps): JSX.Element {
                 {devTools === null ? (
                     <p className="muted">Checking the Python environment…</p>
                 ) : packageCount === 0 ? (
-                    <p className="muted">
-                        {devTools.detail ??
-                            'ansible-dev-tools is not installed in this environment.'}
-                    </p>
-                ) : (
-                    <p className="overview-value">
-                        {String(packageCount)} packages
-                        {core !== undefined && (
-                            <span className="item-tag">core {core.version}</span>
+                    <>
+                        <p className="muted">
+                            {devTools.detail ??
+                                'ansible-dev-tools is not installed in this environment.'}
+                        </p>
+                        <button className="ghost" disabled={installing} onClick={install}>
+                            {installing ? 'Installing…' : 'Install ansible-dev-tools (pip)'}
+                        </button>
+                        {installResult?.state === 'error' && (
+                            <pre className="install-output">{installResult.output}</pre>
                         )}
-                    </p>
+                    </>
+                ) : (
+                    <>
+                        <p className="overview-value">
+                            {String(packageCount)} packages
+                            {core !== undefined && (
+                                <span className="item-tag">core {core.version}</span>
+                            )}
+                        </p>
+                        {installResult?.state === 'ready' && (
+                            <p className="muted">
+                                Installed {String(installResult.packageCount)} packages.
+                            </p>
+                        )}
+                    </>
                 )}
             </section>
 

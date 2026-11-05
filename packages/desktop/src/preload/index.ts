@@ -10,6 +10,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import {
     IPC,
     type AppState,
+    type DevToolsInstallResult,
     type DevToolsResult,
     type CollectionsResult,
     type EnvironmentGroupsResult,
@@ -39,6 +40,8 @@ const bridge: NavitaBridge = {
         ipcRenderer.invoke(IPC.copySnippet, harness) as Promise<string>,
     testConnection: () => ipcRenderer.invoke(IPC.testConnection) as Promise<AppState>,
     getDevTools: () => ipcRenderer.invoke(IPC.getDevTools) as Promise<DevToolsResult>,
+    installDevTools: () =>
+        ipcRenderer.invoke(IPC.installDevTools) as Promise<DevToolsInstallResult>,
     getEnvironments: (workspacePath: string | null) =>
         ipcRenderer.invoke(IPC.getEnvironments, workspacePath) as Promise<EnvironmentGroupsResult>,
     selectEnvironment: (pythonPath: string | null) =>

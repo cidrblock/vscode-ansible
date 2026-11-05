@@ -316,6 +316,12 @@ if (process.exitCode !== 1) {
         console.log(`PASS  dev-tools        ${devTools.packages.length} packages (${names.join(', ')}…)`);
     }
 
+    const installerModule = await bundleModule('installer.ts', 'installer');
+    const install = installerModule.installCommand('/venv/bin/python3');
+    console.log(
+        `PASS  installer       ${install.command} ${install.args.join(' ')}`,
+    );
+
     const toolsModule = await bundleModule('tools.ts', 'tools');
     const toolCatalog = await toolsModule.loadTools(
         {
