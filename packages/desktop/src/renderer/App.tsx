@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState, type JSX } from 'react';
 
-import { HARNESSES, SECTIONS, type AppState, type HarnessId, type SectionId } from '../shared/ipc';
+import { SECTIONS, type AppState, type HarnessId, type SectionId } from '../shared/ipc';
 import { CollectionsView } from './components/CollectionsView';
+import { HarnessSetupView } from './components/HarnessSetupView';
+import { ServicesView } from './components/ServicesView';
 import { DevToolsView } from './components/DevToolsView';
 import { ExecutionEnvironmentsView } from './components/ExecutionEnvironmentsView';
 import { PlaybooksView } from './components/PlaybooksView';
@@ -11,6 +13,7 @@ import { EnvironmentsView } from './components/EnvironmentsView';
 import { SkillsView } from './components/SkillsView';
 import { ToolsView } from './components/ToolsView';
 import { Sidebar } from './components/Sidebar';
+import { StatusPill } from './components/StatusPill';
 import { Welcome } from './components/Welcome';
 
 /**
@@ -194,55 +197,18 @@ export function App(): JSX.Element {
                                 <CollectionSourcesView onCopied={handleCopied} />
                             )}
 
-                            <section className="card">
-                                <h2>Servers</h2>
-                                <dl className="status-list">
-                                    <dt>MCP server</dt>
-                                    <dd>
-                                        <StatusPill state={state.mcp.state} />
-                                        {state.mcp.detail !== undefined && (
-                                            <span className="muted">{state.mcp.detail}</span>
-                                        )}
-                                    </dd>
-                                    <dt>Language server</dt>
-                                    <dd>
-                                        <StatusPill state={state.lsp.state} />
-                                        {state.lsp.detail !== undefined && (
-                                            <span className="muted">{state.lsp.detail}</span>
-                                        )}
-                                    </dd>
-                                </dl>
-                                <button
-                                    className="ghost"
-                                    onClick={() => {
+                            {state.activeSection === 'harness-setup' && (
+                                <HarnessSetupView onCopy={copySnippet} />
+                            )}
+
+                            {state.activeSection === 'services' && (
+                                <ServicesView
+                                    state={state}
+                                    onTest={() => {
                                         run(() => window.navita.testConnection());
                                     }}
-                                >
-                                    Test connection
-                                </button>
-                            </section>
-
-                            <section className="card">
-                                <h2>Harness setup</h2>
-                                <p className="muted">
-                                    navita ships the MCP server. Paste this snippet into your
-                                    harness&apos;s config:
-                                </p>
-                                <div className="harness-grid">
-                                    {HARNESSES.map((harness) => (
-                                        <button
-                                            key={harness.id}
-                                            className="ghost"
-                                            onClick={() => {
-                                                copySnippet(harness.id);
-                                            }}
-                                        >
-                                            {harness.label}
-                                            <span className="chip-path">{harness.configPath}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </section>
+                                />
+                            )}
                         </main>
                     </>
                 )}
@@ -262,14 +228,4 @@ export function App(): JSX.Element {
             {notice !== null && <div className="toast">{notice}</div>}
         </div>
     );
-}
-
-/**
- * Small coloured badge for a server state.
- * @param props - Component properties.
- * @param props.state - Server state name used as the badge label and modifier.
- * @returns The badge element.
- */
-function StatusPill(props: { state: string }): JSX.Element {
-    return <span className={`pill pill-${props.state}`}>{props.state}</span>;
 }

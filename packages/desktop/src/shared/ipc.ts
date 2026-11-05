@@ -38,7 +38,9 @@ export type SectionId =
     | 'installed-collections'
     | 'playbooks'
     | 'creator'
-    | 'collection-sources';
+    | 'collection-sources'
+    | 'harness-setup'
+    | 'services';
 
 /** Groups the sidebar collapses as a unit. */
 export type SectionGroupId = 'environment' | 'ai' | 'content';
@@ -118,6 +120,18 @@ export const SECTIONS: readonly Section[] = [
         label: 'Collection Sources',
         group: 'content',
         sourceView: 'ansibleCollectionSources',
+    },
+    {
+        id: 'harness-setup',
+        label: 'Harness Setup',
+        group: 'ai',
+        sourceView: 'navitaHarnessSetup',
+    },
+    {
+        id: 'services',
+        label: 'Services',
+        group: 'ai',
+        sourceView: 'navitaServices',
     },
 ];
 
