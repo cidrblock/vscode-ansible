@@ -6,6 +6,7 @@ import { DevToolsView } from './components/DevToolsView';
 import { ExecutionEnvironmentsView } from './components/ExecutionEnvironmentsView';
 import { PlaybooksView } from './components/PlaybooksView';
 import { CreatorView } from './components/CreatorView';
+import { CollectionSourcesView } from './components/CollectionSourcesView';
 import { EnvironmentsView } from './components/EnvironmentsView';
 import { SkillsView } from './components/SkillsView';
 import { ToolsView } from './components/ToolsView';
@@ -187,6 +188,10 @@ export function App(): JSX.Element {
 
                             {state.activeSection === 'creator' && (
                                 <CreatorView onCopied={handleCopied} />
+                            )}
+
+                            {state.activeSection === 'collection-sources' && (
+                                <CollectionSourcesView onCopied={handleCopied} />
                             )}
 
                             <section className="card">

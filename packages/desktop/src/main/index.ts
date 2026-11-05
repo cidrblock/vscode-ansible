@@ -28,6 +28,7 @@ import { loadCollections } from './collections';
 import { loadExecutionEnvironments } from './executionEnvironments';
 import { loadPlaybooks } from './playbooks';
 import { loadCreator } from './creator';
+import { loadCollectionSources } from './collectionSources';
 import { loadSkills } from './skills';
 import { invalidateToolCache, loadTools } from './tools';
 import { probeServers, serverEnv, serverSpawnSpec, type SpawnSpec } from './servers';
@@ -387,6 +388,7 @@ function registerIpc(): void {
         loadPlaybooks(workspacePath),
     );
     ipcMain.handle(IPC.getCreator, () => loadCreator());
+    ipcMain.handle(IPC.getCollectionSources, () => loadCollectionSources(app.getPath('userData')));
     ipcMain.handle(IPC.testConnection, async () =>
         workspace === null ? currentState() : activateWorkspace(workspace.path),
     );

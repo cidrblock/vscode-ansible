@@ -16,6 +16,7 @@ import {
     type ExecutionEnvironmentsResult,
     type PlaybooksResult,
     type CreatorResult,
+    type CollectionSourcesResult,
     type SkillsResult,
     type ToolsResult,
     type HarnessId,
@@ -47,6 +48,8 @@ const bridge: NavitaBridge = {
     getPlaybooks: (workspacePath: string | null) =>
         ipcRenderer.invoke(IPC.getPlaybooks, workspacePath) as Promise<PlaybooksResult>,
     getCreator: () => ipcRenderer.invoke(IPC.getCreator) as Promise<CreatorResult>,
+    getCollectionSources: () =>
+        ipcRenderer.invoke(IPC.getCollectionSources) as Promise<CollectionSourcesResult>,
     onStateChanged: (listener: (state: AppState) => void) => {
         const handler = (_event: IpcRendererEvent, state: AppState): void => {
             listener(state);

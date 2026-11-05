@@ -379,6 +379,19 @@ if (process.exitCode !== 1) {
         );
     }
 
+    const sourcesModule = await bundleModule('collectionSources.ts', 'collection-sources');
+    const storage = fs.mkdtempSync(path.join(os.tmpdir(), 'navita-sources-'));
+    const sources = await sourcesModule.loadCollectionSources(storage, { startLoad: false });
+    fs.rmSync(storage, { recursive: true, force: true });
+    if (sources.state === 'error') {
+        fail(`collection sources: ${sources.detail}`);
+    } else {
+        const cached = sources.github.filter((org) => org.count > 0).map((org) => org.org);
+        console.log(
+            `PASS  sources         state=${sources.state}, Galaxy=${sources.total}, GitHub orgs cached: ${cached.join(', ') || 'none'}`,
+        );
+    }
+
     const environmentsModule = await bundleModule('environments.ts', 'environments');
     const environments = await environmentsModule.loadEnvironments(WORKSPACE);
     if (environments.state === 'error') {

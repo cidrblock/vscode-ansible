@@ -23,6 +23,7 @@ export const IPC = {
     getExecutionEnvironments: 'navita:get-execution-environments',
     getPlaybooks: 'navita:get-playbooks',
     getCreator: 'navita:get-creator',
+    getCollectionSources: 'navita:get-collection-sources',
     getSkills: 'navita:get-skills',
     copyText: 'navita:copy-text',
 } as const;
@@ -90,7 +91,7 @@ export const SECTIONS: readonly Section[] = [
         id: 'collection-sources',
         label: 'Collection Sources',
         sourceView: 'ansibleCollectionSources',
-        status: 'placeholder',
+        status: 'ready',
     },
 ];
 
@@ -298,6 +299,34 @@ export interface CreatorResult {
     readonly detail?: string;
 }
 
+/** One collection in the Galaxy catalog. */
+export interface CollectionSourceEntry {
+    /** Fully qualified name, `namespace.name`. */
+    readonly name: string;
+    readonly version: string;
+    readonly downloadCount: number;
+    readonly deprecated: boolean;
+    /** AI summary prompt for this collection. */
+    readonly prompt: string;
+}
+
+/** Cached collection count for one GitHub organization. */
+export interface GitHubOrgSource {
+    readonly org: string;
+    readonly count: number;
+    readonly lastUpdated?: string;
+}
+
+export interface CollectionSourcesResult {
+    /** `loading` while the Galaxy catalog is still being fetched. */
+    readonly state: 'ready' | 'loading' | 'error';
+    /** Collections in the catalog, not just the ones listed. */
+    readonly total: number;
+    readonly galaxy: readonly CollectionSourceEntry[];
+    readonly github: readonly GitHubOrgSource[];
+    readonly detail?: string;
+}
+
 /** Surface exposed to the renderer through the preload bridge. */
 export interface NavitaBridge {
     getState(): Promise<AppState>;
@@ -317,6 +346,7 @@ export interface NavitaBridge {
     getExecutionEnvironments(): Promise<ExecutionEnvironmentsResult>;
     getPlaybooks(workspacePath: string | null): Promise<PlaybooksResult>;
     getCreator(): Promise<CreatorResult>;
+    getCollectionSources(): Promise<CollectionSourcesResult>;
     onStateChanged(listener: (state: AppState) => void): () => void;
     onToggleSidebar(listener: () => void): () => void;
 }
