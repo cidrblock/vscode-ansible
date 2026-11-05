@@ -7,9 +7,10 @@
  * with #151515 chrome over #292929 content. Red Hat Text/Display/Mono match
  * the typography the theme sets.
  *
- * The accent is Red Hat brand red. RHDH 2.x itself uses the PatternFly 6
- * interactive blue (#0066cc, #92c5f9 on dark); swapping the two --accent
- * values below is the whole difference if strict RHDH parity is wanted.
+ * Accents are RHDH's own: PatternFly 6 interactive blue #0066cc in light and
+ * #92c5f9 in dark, with the light-on-dark case carrying dark label text (hence
+ * --accent-fg). Red Hat brand red (#ee0000 / #be0000) is the alternative if a
+ * more AAP-like accent is wanted.
  */
 
 @font-face {
@@ -72,8 +73,9 @@
     --fg: #151515;
     --fg-muted: #6a6e73;
     --border: #c7c7c7;
-    --accent: #ee0000;
-    --accent-hover: #be0000;
+    --accent: #0066cc;
+    --accent-hover: #00478e;
+    --accent-fg: #ffffff;
     --ok: #3d7317;
     --warn: #c05600;
     --err: #b1380b;
@@ -90,8 +92,9 @@
     --fg: #ffffff;
     --fg-muted: #c7c7c7;
     --border: #515151;
-    --accent: #ee0000;
-    --accent-hover: #be0000;
+    --accent: #92c5f9;
+    --accent-hover: #b9dafc;
+    --accent-fg: #151515;
     --ok: #87bb62;
     --warn: #ffcc17;
     --err: #ff5252;

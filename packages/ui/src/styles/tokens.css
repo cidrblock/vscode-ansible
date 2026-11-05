@@ -21,6 +21,8 @@
 
     --ui-accent: var(--host-accent, #007acc);
     --ui-accent-hover: var(--host-accent-hover, #1a8ad4);
+    /* Label colour on an accent fill: a light accent (dark themes) needs dark text. */
+    --ui-accent-fg: var(--host-accent-fg, var(--vscode-button-foreground, #fff));
 
     --ui-success: var(--host-success, #4ec9b0);
     --ui-warning: var(--host-warning, #cca700);

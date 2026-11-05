@@ -166,7 +166,7 @@ button {
     padding: 8px 16px;
     border-radius: 6px;
     background: var(--accent);
-    color: #fff;
+    color: var(--accent-fg, #fff);
     font-weight: 600;
 }
 
@@ -672,7 +672,8 @@ button {
     --host-border: var(--border);
     --host-border-active: var(--accent);
     --host-accent: var(--accent);
-    --host-accent-hover: var(--accent);
+    --host-accent-hover: var(--accent-hover, var(--accent));
+    --host-accent-fg: var(--accent-fg, #fff);
     --host-success: var(--ok);
     --host-warning: var(--warn);
     --host-error: var(--err);
