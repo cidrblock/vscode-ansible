@@ -4,6 +4,7 @@ import { buildPreviewString } from '@ansible/common';
 import { BridgeProvider, CreatorFormView, type SchemaNode } from '@ansible/ui';
 
 import type { CreatorCommandEntry, CreatorResult } from '../../shared/ipc';
+import { CapNotice, FilterBox, useGroupedFilter } from '../filter';
 import { useTrail } from '../navigation';
 import { CopyButton } from './CopyButton';
 import { createCreatorBridge } from './creatorBridge';
@@ -92,6 +93,11 @@ export function CreatorView(props: CreatorViewProps): JSX.Element {
     }, [load]);
 
     const groups = useMemo(() => (result === null ? [] : groupCommands(result.commands)), [result]);
+    const filter = useGroupedFilter(
+        groups,
+        (group) => group.commands,
+        (command) => `${command.name} ${command.description ?? ''} ${command.command}`,
+    );
 
     const bridge = useMemo(
         () =>
@@ -136,6 +142,11 @@ export function CreatorView(props: CreatorViewProps): JSX.Element {
         <section className="card">
             <div className="card-header">
                 <h2>Creator</h2>
+                <FilterBox
+                    label="Filter commands"
+                    value={filter.query}
+                    onChange={filter.setQuery}
+                />
                 <span className="muted">
                     {result === null
                         ? '…'
@@ -153,58 +164,72 @@ export function CreatorView(props: CreatorViewProps): JSX.Element {
                 <p className="muted">{result.detail ?? 'ansible-creator is unavailable.'}</p>
             ) : groups.length === 0 ? (
                 <p className="muted">This ansible-creator version exposes no commands.</p>
+            ) : filter.active && filter.groups.length === 0 ? (
+                <p className="muted">No commands match “{filter.query}”.</p>
             ) : (
-                groups.map((group) => (
-                    <div key={group.group} className="playbook-group">
-                        <h3 className="group-label">ansible-creator {group.group}</h3>
-                        <ul className="item-list">
-                            {group.commands.map((command) => {
-                                const schema = commandNode(result.schema, command.path);
-                                return (
-                                    <li key={command.path} className="item-row">
-                                        <div className="item-main">
-                                            <span className="item-title">{command.name}</span>
-                                            {command.description !== undefined && (
-                                                <span className="item-description">
-                                                    {command.description}
+                <>
+                    {filter.groups.map(({ group, items }) => (
+                        <div key={group.group} className="playbook-group">
+                            <h3 className="group-label">ansible-creator {group.group}</h3>
+                            <ul className="item-list">
+                                {items.map((command) => {
+                                    const schema = commandNode(result.schema, command.path);
+                                    return (
+                                        <li key={command.path} className="item-row">
+                                            <div className="item-main">
+                                                <span className="item-title">{command.name}</span>
+                                                {command.description !== undefined && (
+                                                    <span className="item-description">
+                                                        {command.description}
+                                                    </span>
+                                                )}
+                                                <code className="command-template">
+                                                    {command.command}
+                                                </code>
+                                            </div>
+                                            {command.required.length > 0 && (
+                                                <span className="item-tag">
+                                                    {String(command.required.length)} required
                                                 </span>
                                             )}
-                                            <code className="command-template">
-                                                {command.command}
-                                            </code>
-                                        </div>
-                                        {command.required.length > 0 && (
-                                            <span className="item-tag">
-                                                {String(command.required.length)} required
-                                            </span>
-                                        )}
-                                        <button
-                                            className="ghost"
-                                            disabled={schema === null}
-                                            title={
-                                                schema === null
-                                                    ? 'This command has no form schema'
-                                                    : `Fill in ${command.path} and run it`
-                                            }
-                                            onClick={() => {
-                                                if (schema !== null) {
-                                                    push({ id: command.path, label: command.path });
+                                            <button
+                                                className="ghost"
+                                                disabled={schema === null}
+                                                title={
+                                                    schema === null
+                                                        ? 'This command has no form schema'
+                                                        : `Fill in ${command.path} and run it`
                                                 }
-                                            }}
-                                        >
-                                            Configure
-                                        </button>
-                                        <CopyButton
-                                            label={command.path}
-                                            prompt={command.command}
-                                            onCopied={onCopied}
-                                        />
-                                    </li>
-                                );
-                            })}
-                        </ul>
-                    </div>
-                ))
+                                                onClick={() => {
+                                                    if (schema !== null) {
+                                                        push({
+                                                            id: command.path,
+                                                            label: command.path,
+                                                        });
+                                                    }
+                                                }}
+                                            >
+                                                Configure
+                                            </button>
+                                            <CopyButton
+                                                label={command.path}
+                                                prompt={command.command}
+                                                onCopied={onCopied}
+                                            />
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </div>
+                    ))}
+                    <CapNotice
+                        shown={filter.groups.reduce(
+                            (count, entry) => count + entry.items.length,
+                            0,
+                        )}
+                        matches={filter.matches}
+                    />
+                </>
             )}
         </section>
     );

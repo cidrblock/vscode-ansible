@@ -161,6 +161,7 @@
 :root[data-theme^='rhdh'] .link,
 :root[data-theme^='rhdh'] .icon-button,
 :root[data-theme^='rhdh'] select,
+:root[data-theme^='rhdh'] .filter-box,
 :root[data-theme^='rhdh'] .install-output {
     border-radius: 3px;
 }

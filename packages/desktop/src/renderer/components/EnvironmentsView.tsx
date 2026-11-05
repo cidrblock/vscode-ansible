@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type JSX } from 'react';
 
 import type { EnvironmentGroupsResult } from '../../shared/ipc';
+import { CapNotice, FilterBox, useGroupedFilter } from '../filter';
 
 export interface EnvironmentsViewProps {
     /** Workspace whose local virtual environments are scanned. */
@@ -64,11 +65,22 @@ export function EnvironmentsView(props: EnvironmentsViewProps): JSX.Element {
 
     const empty = result !== null && result.groups.length === 0;
     const pinned = result?.selection ?? null;
+    const filter = useGroupedFilter(
+        result?.groups ?? [],
+        (group) => group.environments,
+        (environment) => `${environment.name} ${environment.pythonPath}`,
+    );
+    const shown = filter.groups.reduce((count, entry) => count + entry.items.length, 0);
 
     return (
         <section className="card">
             <div className="card-header">
                 <h2>Environment Managers</h2>
+                <FilterBox
+                    label="Filter environments"
+                    value={filter.query}
+                    onChange={filter.setQuery}
+                />
                 <div className="header-actions">
                     {pinned !== null && (
                         <button
@@ -94,41 +106,46 @@ export function EnvironmentsView(props: EnvironmentsViewProps): JSX.Element {
                         ? (result.detail ?? 'Discovery failed.')
                         : 'No Python environments found on PATH or in this workspace.'}
                 </p>
+            ) : filter.active && filter.groups.length === 0 ? (
+                <p className="muted">No environments match “{filter.query}”.</p>
             ) : (
-                result.groups.map((group) => (
-                    <div key={group.id} className="env-group">
-                        <h3>{group.label}</h3>
-                        <ul className="item-list">
-                            {group.environments.map((environment) => (
-                                <li key={environment.pythonPath} className="item-row">
-                                    <div className="item-main">
-                                        <span className="item-title">{environment.name}</span>
-                                        <span className="item-description">
-                                            {environment.pythonPath}
-                                        </span>
-                                    </div>
-                                    {environment.version !== undefined && (
-                                        <span className="item-tag">{environment.version}</span>
-                                    )}
-                                    {environment.active ? (
-                                        <span className="pill pill-ready">in use</span>
-                                    ) : (
-                                        <button
-                                            className="ghost"
-                                            disabled={busy}
-                                            title={`Run Ansible commands with ${environment.pythonPath}`}
-                                            onClick={() => {
-                                                choose(environment.pythonPath);
-                                            }}
-                                        >
-                                            Use
-                                        </button>
-                                    )}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                ))
+                <>
+                    {filter.groups.map(({ group, items }) => (
+                        <div key={group.id} className="env-group">
+                            <h3>{group.label}</h3>
+                            <ul className="item-list">
+                                {items.map((environment) => (
+                                    <li key={environment.pythonPath} className="item-row">
+                                        <div className="item-main">
+                                            <span className="item-title">{environment.name}</span>
+                                            <span className="item-description">
+                                                {environment.pythonPath}
+                                            </span>
+                                        </div>
+                                        {environment.version !== undefined && (
+                                            <span className="item-tag">{environment.version}</span>
+                                        )}
+                                        {environment.active ? (
+                                            <span className="pill pill-ready">in use</span>
+                                        ) : (
+                                            <button
+                                                className="ghost"
+                                                disabled={busy}
+                                                title={`Run Ansible commands with ${environment.pythonPath}`}
+                                                onClick={() => {
+                                                    choose(environment.pythonPath);
+                                                }}
+                                            >
+                                                Use
+                                            </button>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    ))}
+                    <CapNotice shown={shown} matches={filter.matches} />
+                </>
             )}
         </section>
     );

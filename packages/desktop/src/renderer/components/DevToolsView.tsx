@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type JSX } from 'react';
 
 import type { DevToolsResult } from '../../shared/ipc';
+import { CapNotice, FilterBox, useListFilter } from '../filter';
 
 /**
  * Ansible Dev Tools section: the developer packages found in the active
@@ -28,10 +29,27 @@ export function DevToolsView(): JSX.Element {
         load();
     }, [load]);
 
+    const filter = useListFilter(
+        result?.packages ?? [],
+        (entry) => `${entry.name} ${entry.location ?? ''}`,
+    );
+
     return (
         <section className="card">
             <div className="card-header">
                 <h2>Ansible Dev Tools</h2>
+                <FilterBox
+                    label="Filter packages"
+                    value={filter.query}
+                    onChange={filter.setQuery}
+                />
+                <span className="muted">
+                    {result === null
+                        ? '…'
+                        : filter.active
+                          ? `${String(filter.matches)} of ${String(filter.total)} packages`
+                          : `${String(result.packages.length)} packages`}
+                </span>
                 <button className="ghost" onClick={load}>
                     Refresh
                 </button>
@@ -44,20 +62,25 @@ export function DevToolsView(): JSX.Element {
                         ? (result.detail ?? 'Discovery failed.')
                         : 'No Ansible developer tools found on PATH.'}
                 </p>
+            ) : filter.active && filter.items.length === 0 ? (
+                <p className="muted">No packages match “{filter.query}”.</p>
             ) : (
-                <ul className="item-list">
-                    {result.packages.map((entry) => (
-                        <li key={entry.name} className="item-row">
-                            <div className="item-main">
-                                <span className="item-title">{entry.name}</span>
-                                {entry.location !== undefined && (
-                                    <span className="item-description">{entry.location}</span>
-                                )}
-                            </div>
-                            <span className="item-tag">{entry.version}</span>
-                        </li>
-                    ))}
-                </ul>
+                <>
+                    <ul className="item-list">
+                        {filter.items.map((entry) => (
+                            <li key={entry.name} className="item-row">
+                                <div className="item-main">
+                                    <span className="item-title">{entry.name}</span>
+                                    {entry.location !== undefined && (
+                                        <span className="item-description">{entry.location}</span>
+                                    )}
+                                </div>
+                                <span className="item-tag">{entry.version}</span>
+                            </li>
+                        ))}
+                    </ul>
+                    <CapNotice shown={filter.items.length} matches={filter.matches} />
+                </>
             )}
         </section>
     );

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState, type JSX } from 'react';
+import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
 
 import type { CollectionSourcesResult } from '../../shared/ipc';
+import { CapNotice, FilterBox, ROW_LIMIT, matchesQuery } from '../filter';
 import { CopyButton } from './CopyButton';
 
 /** How often the view asks again while the catalog is downloading. */
@@ -15,6 +16,18 @@ const POLL_MS = 2500;
 export function CollectionSourcesView(props: { onCopied: (label: string) => void }): JSX.Element {
     const { onCopied } = props;
     const [result, setResult] = useState<CollectionSourcesResult | null>(null);
+    const [query, setQuery] = useState('');
+
+    // One query for both lists: this page is one card with two sources.
+    const galaxy = useMemo(
+        () => (result?.galaxy ?? []).filter((entry) => matchesQuery(entry.name, query)),
+        [result, query],
+    );
+    const github = useMemo(
+        () => (result?.github ?? []).filter((entry) => matchesQuery(entry.org, query)),
+        [result, query],
+    );
+    const filtering = query.trim().length > 0;
 
     const load = useCallback(() => {
         window.navita
@@ -60,10 +73,13 @@ export function CollectionSourcesView(props: { onCopied: (label: string) => void
         <section className="card">
             <div className="card-header">
                 <h2>Collection Sources</h2>
+                <FilterBox label="Filter sources" value={query} onChange={setQuery} />
                 <span className="muted">
                     {result === null || result.state === 'loading'
                         ? 'loading Galaxy catalog…'
-                        : `${String(result.total)} Galaxy collections`}
+                        : filtering
+                          ? `${String(galaxy.length)} of ${String(result.total)} Galaxy collections`
+                          : `${String(result.total)} Galaxy collections`}
                 </span>
                 <button className="ghost" onClick={load}>
                     Refresh
@@ -75,34 +91,43 @@ export function CollectionSourcesView(props: { onCopied: (label: string) => void
                 <p className="muted">Reading the collection catalog…</p>
             ) : result.galaxy.length === 0 ? (
                 <p className="muted">{result.detail ?? 'No Galaxy collections cached yet.'}</p>
+            ) : galaxy.length === 0 ? (
+                <p className="muted">No Galaxy collections match “{query}”.</p>
             ) : (
-                <ul className="item-list">
-                    {result.galaxy.map((collection) => (
-                        <li key={collection.name} className="item-row">
-                            <div className="item-main">
-                                <span className="item-title">{collection.name}</span>
-                                <span className="item-description">
-                                    {String(collection.downloadCount)} downloads
-                                </span>
-                            </div>
-                            {collection.deprecated && <span className="item-tag">deprecated</span>}
-                            <span className="item-tag">{collection.version}</span>
-                            <CopyButton
-                                label={collection.name}
-                                prompt={collection.prompt}
-                                onCopied={onCopied}
-                            />
-                        </li>
-                    ))}
-                </ul>
+                <>
+                    <ul className="item-list">
+                        {galaxy.slice(0, ROW_LIMIT).map((collection) => (
+                            <li key={collection.name} className="item-row">
+                                <div className="item-main">
+                                    <span className="item-title">{collection.name}</span>
+                                    <span className="item-description">
+                                        {String(collection.downloadCount)} downloads
+                                    </span>
+                                </div>
+                                {collection.deprecated && (
+                                    <span className="item-tag">deprecated</span>
+                                )}
+                                <span className="item-tag">{collection.version}</span>
+                                <CopyButton
+                                    label={collection.name}
+                                    prompt={collection.prompt}
+                                    onCopied={onCopied}
+                                />
+                            </li>
+                        ))}
+                    </ul>
+                    <CapNotice shown={Math.min(galaxy.length, ROW_LIMIT)} matches={galaxy.length} />
+                </>
             )}
 
             <h3 className="group-label">GitHub organizations</h3>
             {result === null || result.github.length === 0 ? (
                 <p className="muted">No organization caches found.</p>
+            ) : github.length === 0 ? (
+                <p className="muted">No organizations match “{query}”.</p>
             ) : (
                 <ul className="item-list">
-                    {result.github.map((org) => (
+                    {github.map((org) => (
                         <li key={org.org} className="item-row">
                             <div className="item-main">
                                 <span className="item-title">{org.org}</span>
