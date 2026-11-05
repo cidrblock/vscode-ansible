@@ -46,7 +46,7 @@ describe('parseState', () => {
     });
 
     it('falls back to the default section for unknown ids', () => {
-        expect(parseState({ activeSection: 'nope' }).activeSection).toBe('dev-tools');
+        expect(parseState({ activeSection: 'nope' }).activeSection).toBe('overview');
     });
 
     it('keeps pinned interpreters and drops malformed pairs', () => {

@@ -64,6 +64,12 @@ describe('buildMenuTemplate', () => {
         expect(sectionItems.filter((item) => item.checked === true)).toHaveLength(1);
     });
 
+    it('leads the View menu with the overview', () => {
+        const view = menu({}).find((item) => item.label === '&View');
+        const sections = (view?.submenu ?? []).filter((item) => item.action === 'show-section');
+        expect(sections[0]?.label).toBe('Overview');
+    });
+
     it('offers Back in the View menu on Alt+Left', () => {
         const back = find(menu({}), 'Back');
         expect(back?.action).toBe('back');

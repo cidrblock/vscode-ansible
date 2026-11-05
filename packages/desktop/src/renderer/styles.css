@@ -689,3 +689,30 @@ button {
 .crumb-separator {
     color: var(--fg-muted);
 }
+
+.nav-home {
+    padding-left: 12px;
+}
+
+.overview-value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 4px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.overview-path {
+    margin: 0 0 10px;
+    overflow-wrap: anywhere;
+}
+
+.crumb-current {
+    font-weight: 600;
+    color: var(--fg);
+}
+
+.crumb-current.crumb {
+    cursor: default;
+}

@@ -13,7 +13,8 @@ import { EnvironmentsView } from './components/EnvironmentsView';
 import { SkillsView } from './components/SkillsView';
 import { ToolsView } from './components/ToolsView';
 import { Sidebar } from './components/Sidebar';
-import { ViewHeader } from './components/ViewHeader';
+import { ViewHeader, type CrumbLink } from './components/ViewHeader';
+import { OverviewView } from './components/OverviewView';
 import { StatusPill } from './components/StatusPill';
 import { Welcome } from './components/Welcome';
 import {
@@ -126,12 +127,27 @@ export function App(): JSX.Element {
 
     const navigation = useMemo(() => ({ trails, update: updateTrails }), [trails, updateTrails]);
 
+    const navigate = useCallback(
+        (section: SectionId) => {
+            setTrails((current) => truncateTrail(current, section, 0));
+            run(() => window.navita.showSection(section));
+        },
+        [run],
+    );
+
+    // Back walks the view's own trail first, then falls back to the overview.
     const back = useCallback(() => {
         if (activeSection === undefined) {
             return;
         }
-        setTrails((current) => popCrumb(current, activeSection));
-    }, [activeSection]);
+        if (trail.length > 0) {
+            setTrails((current) => popCrumb(current, activeSection));
+            return;
+        }
+        if (activeSection !== 'overview') {
+            navigate('overview');
+        }
+    }, [activeSection, navigate, trail.length]);
 
     const goToDepth = useCallback(
         (depth: number) => {
@@ -142,6 +158,43 @@ export function App(): JSX.Element {
         },
         [activeSection],
     );
+
+    const crumbs = useMemo((): readonly CrumbLink[] => {
+        if (activeSection === undefined || activeSection === 'overview') {
+            return [{ label: 'Overview' }];
+        }
+        return [
+            {
+                label: 'Overview',
+                onClick: () => {
+                    navigate('overview');
+                },
+            },
+            {
+                label: sectionLabel,
+                ...(trail.length === 0
+                    ? {}
+                    : {
+                          onClick: () => {
+                              goToDepth(0);
+                          },
+                      }),
+            },
+            ...trail.map((crumb, index) => ({
+                label: crumb.label,
+                ...(index === trail.length - 1
+                    ? {}
+                    : {
+                          onClick: () => {
+                              goToDepth(index + 1);
+                          },
+                      }),
+            })),
+        ];
+    }, [activeSection, goToDepth, navigate, sectionLabel, trail]);
+
+    const canGoBack =
+        activeSection !== undefined && (trail.length > 0 || activeSection !== 'overview');
 
     // A different workspace means every trail points at data that no longer exists.
     const workspacePath = state?.workspace?.path;
@@ -216,12 +269,20 @@ export function App(): JSX.Element {
                                 />
                             )}
                             <main className="pane">
-                                <ViewHeader
-                                    label={sectionLabel}
-                                    trail={trail}
-                                    onBack={back}
-                                    onCrumb={goToDepth}
-                                />
+                                <ViewHeader crumbs={crumbs} canGoBack={canGoBack} onBack={back} />
+
+                                {state.activeSection === 'overview' && (
+                                    <OverviewView
+                                        state={state}
+                                        onOpenWorkspace={() => {
+                                            run(() => window.navita.openWorkspace());
+                                        }}
+                                        onRescanWorkspace={() => {
+                                            run(() => window.navita.rescanWorkspace());
+                                        }}
+                                        onGo={navigate}
+                                    />
+                                )}
 
                                 {state.activeSection === 'dev-tools' && <DevToolsView />}
 

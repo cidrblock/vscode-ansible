@@ -200,6 +200,24 @@ function selectedEnvironment(): string | null {
 }
 
 /**
+ * Whether navita has what it needs to be useful in this workspace.
+ *
+ * Startup lands on the overview when it does not, because every fix for a
+ * missing piece lives on that page.
+ * @returns True when a workspace, an interpreter and the Ansible tools exist.
+ */
+async function isReadyForWork(): Promise<boolean> {
+    if (workspace === null || environment === null) {
+        return false;
+    }
+    if (mcpStatus.state === 'error' || lspStatus.state === 'error') {
+        return false;
+    }
+    const devTools = await loadDevTools();
+    return devTools.state === 'ready' && devTools.packages.length > 0;
+}
+
+/**
  * Turn a chosen folder into the active workspace and probe its servers.
  * @param candidate - Directory proposed by the picker or a recent entry.
  * @returns State after the servers have been probed.
@@ -243,6 +261,7 @@ async function activateWorkspace(candidate: string): Promise<AppState> {
 function closeWorkspace(): AppState {
     workspace = null;
     environment = null;
+    persisted.activeSection = 'overview';
     delete process.env.ANSIBLE_ENV_WORKSPACE;
     resetEnvironmentCache();
     persisted.lastWorkspace = null;
@@ -531,11 +550,19 @@ void app.whenReady().then(() => {
     createWindow();
 
     const lastWorkspace = persisted.lastWorkspace;
-    if (lastWorkspace !== null && isDirectory(lastWorkspace)) {
-        void activateWorkspace(lastWorkspace);
-    } else {
+    void (async () => {
+        if (lastWorkspace !== null && isDirectory(lastWorkspace)) {
+            await activateWorkspace(lastWorkspace);
+            // Restore the section the user left off in only when the setup can
+            // actually do the work; otherwise the overview is the useful page.
+            if (await isReadyForWork()) {
+                return;
+            }
+        }
+        persisted.activeSection = 'overview';
+        store.save(persisted);
         broadcast();
-    }
+    })();
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {

@@ -38,6 +38,7 @@ export const IPC = {
 
 /** Sidebar sections, in the order they are ported from the extension views. */
 export type SectionId =
+    | 'overview'
     | 'dev-tools'
     | 'env-managers'
     | 'ai-tools'
@@ -51,7 +52,7 @@ export type SectionId =
     | 'services';
 
 /** Groups the sidebar collapses as a unit. */
-export type SectionGroupId = 'environment' | 'ai' | 'content';
+export type SectionGroupId = 'home' | 'environment' | 'ai' | 'content';
 
 export interface SectionGroup {
     readonly id: SectionGroupId;
@@ -75,6 +76,12 @@ export interface Section {
 }
 
 export const SECTIONS: readonly Section[] = [
+    {
+        id: 'overview',
+        label: 'Overview',
+        group: 'home',
+        sourceView: 'navitaOverview',
+    },
     {
         id: 'dev-tools',
         label: 'Ansible Dev Tools',

@@ -24,7 +24,7 @@ export interface PersistedState {
 export const DEFAULT_STATE: PersistedState = {
     version: STATE_VERSION,
     recents: [],
-    activeSection: 'dev-tools',
+    activeSection: 'overview',
     lastWorkspace: null,
     selectedEnvironments: {},
 };

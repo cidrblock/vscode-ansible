@@ -121,6 +121,24 @@ export function Sidebar(props: SidebarProps): JSX.Element {
 
     return (
         <nav className="sidebar" aria-label="Ansible views">
+            {sections
+                .filter((section) => section.group === 'home')
+                .map((section) => (
+                    <button
+                        key={section.id}
+                        className={
+                            section.id === activeSection
+                                ? 'nav-item nav-home nav-item-active'
+                                : 'nav-item nav-home'
+                        }
+                        aria-current={section.id === activeSection ? 'page' : undefined}
+                        onClick={() => {
+                            onSelect(section.id);
+                        }}
+                    >
+                        {section.label}
+                    </button>
+                ))}
             <div className="nav-group">
                 <button
                     className="nav-group-header"

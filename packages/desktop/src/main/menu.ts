@@ -10,6 +10,7 @@ import {
     SECTIONS,
     SECTION_GROUPS,
     type MenuAction,
+    type Section,
     type SectionId,
     type WorkspaceEntry,
 } from '../shared/ipc';
@@ -42,10 +43,9 @@ export interface MenuContext {
  */
 function sectionMenuItems(activeSection: SectionId): MenuItemSpec[] {
     const items: MenuItemSpec[] = [];
-    for (const group of SECTION_GROUPS) {
-        const grouped = SECTIONS.filter((section) => section.group === group.id);
+    const append = (grouped: readonly Section[]): void => {
         if (grouped.length === 0) {
-            continue;
+            return;
         }
         if (items.length > 0) {
             items.push({ type: 'separator' });
@@ -59,6 +59,11 @@ function sectionMenuItems(activeSection: SectionId): MenuItemSpec[] {
                 actionArg: section.id,
             });
         }
+    };
+    // The overview sits above the sidebar groups, so it leads the menu too.
+    append(SECTIONS.filter((section) => section.group === 'home'));
+    for (const group of SECTION_GROUPS) {
+        append(SECTIONS.filter((section) => section.group === group.id));
     }
     return items;
 }
