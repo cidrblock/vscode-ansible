@@ -1,20 +1,28 @@
 import { useCallback, useEffect, useState, type JSX } from 'react';
 
 import type {
+    ExecutionEnvironmentDetails,
     ExecutionEnvironmentDetailsResult,
     ExecutionEnvironmentsResult,
-    PackageEntry,
 } from '../../shared/ipc';
 import {
+    forgetExecutionEnvironmentDetails,
+    loadExecutionEnvironmentDetails,
+} from '../executionEnvironmentDetails';
+import {
     executionEnvironmentCrumb,
+    executionEnvironmentPackageLabel,
+    executionEnvironmentPackagesCrumb,
     parseExecutionEnvironmentTrail,
+    type ExecutionEnvironmentPackageKind,
 } from '../executionEnvironmentPath';
 import { CapNotice, FilterBox, useListFilter } from '../filter';
 import { useTrail } from '../navigation';
 import { DrillLink } from './DrillLink';
 
 /**
- * Execution Environments section: the image list, and the details of one image.
+ * Execution Environments section: the image list, one image, and each of its
+ * package inventories.
  *
  * The depth comes from the shared trail, so Back and the breadcrumbs behave the
  * same here as in every other view.
@@ -22,10 +30,22 @@ import { DrillLink } from './DrillLink';
  */
 export function ExecutionEnvironmentsView(): JSX.Element {
     const { trail, push } = useTrail('execution-environments');
-    const fullName = parseExecutionEnvironmentTrail(trail);
+    const place = parseExecutionEnvironmentTrail(trail);
 
-    if (fullName !== undefined) {
-        return <EnvironmentDetails fullName={fullName} />;
+    if (place?.level === 'packages') {
+        return <PackageList fullName={place.fullName} kind={place.kind} />;
+    }
+
+    if (place !== undefined) {
+        const { fullName } = place;
+        return (
+            <EnvironmentDetails
+                fullName={fullName}
+                onOpen={(kind) => {
+                    push(executionEnvironmentPackagesCrumb(fullName, kind));
+                }}
+            />
+        );
     }
 
     return (
@@ -61,6 +81,11 @@ function EnvironmentList(props: { onOpen: (fullName: string) => void }): JSX.Ele
             });
     }, []);
 
+    const refresh = useCallback(() => {
+        forgetExecutionEnvironmentDetails();
+        load();
+    }, [load]);
+
     useEffect(() => {
         load();
     }, [load]);
@@ -72,7 +97,7 @@ function EnvironmentList(props: { onOpen: (fullName: string) => void }): JSX.Ele
                 <span className="muted">
                     {result === null ? '…' : `${String(result.environments.length)} images`}
                 </span>
-                <button className="ghost" onClick={load}>
+                <button className="ghost" onClick={refresh}>
                     Refresh
                 </button>
             </div>
@@ -110,55 +135,33 @@ function EnvironmentList(props: { onOpen: (fullName: string) => void }): JSX.Ele
 }
 
 /**
- * Everything the introspection script reports for one image.
+ * What one image contains, with a way into each inventory.
  * @param props - Component properties.
  * @param props.fullName - Image being inspected.
+ * @param props.onOpen - Opens one of the image's package inventories.
  * @returns The detail pane.
  */
-function EnvironmentDetails(props: { fullName: string }): JSX.Element {
-    const { fullName } = props;
+function EnvironmentDetails(props: {
+    fullName: string;
+    onOpen: (kind: ExecutionEnvironmentPackageKind) => void;
+}): JSX.Element {
+    const { fullName, onOpen } = props;
     const [result, setResult] = useState<ExecutionEnvironmentDetailsResult | null>(null);
 
     useEffect(() => {
         let active = true;
         setResult(null);
-        window.navita
-            .getExecutionEnvironmentDetails(fullName)
-            .then((next) => {
-                if (active) {
-                    setResult(next);
-                }
-            })
-            .catch((error: unknown) => {
-                if (active) {
-                    setResult({
-                        state: 'error',
-                        detail: error instanceof Error ? error.message : String(error),
-                    });
-                }
-            });
+        void loadExecutionEnvironmentDetails(fullName).then((next) => {
+            if (active) {
+                setResult(next);
+            }
+        });
         return () => {
             active = false;
         };
     }, [fullName]);
 
     const details = result?.details;
-    const collections = useListFilter<PackageEntry>(
-        details?.collections ?? [],
-        useCallback((entry: PackageEntry) => `${entry.name} ${entry.version}`, []),
-    );
-    const pythonPackages = useListFilter(
-        details?.pythonPackages ?? [],
-        useCallback(
-            (entry: { name: string; version: string; summary?: string }) =>
-                `${entry.name} ${entry.version} ${entry.summary ?? ''}`,
-            [],
-        ),
-    );
-    const systemPackages = useListFilter<PackageEntry>(
-        details?.systemPackages ?? [],
-        useCallback((entry: PackageEntry) => `${entry.name} ${entry.version}`, []),
-    );
 
     if (result === null) {
         return (
@@ -201,40 +204,162 @@ function EnvironmentDetails(props: { fullName: string }): JSX.Element {
                 </dl>
             </section>
 
-            <PackageCard
-                title="Ansible collections"
-                label="Filter collections"
-                entries={collections.items}
-                query={collections.query}
-                onQuery={collections.setQuery}
-                matches={collections.matches}
-                total={collections.total}
-                empty="The image reports no collections."
-            />
-
-            <PackageCard
-                title="Python packages"
-                label="Filter Python packages"
-                entries={pythonPackages.items}
-                query={pythonPackages.query}
-                onQuery={pythonPackages.setQuery}
-                matches={pythonPackages.matches}
-                total={pythonPackages.total}
-                empty="The image reports no Python packages."
-            />
-
-            <PackageCard
-                title="System packages"
-                label="Filter system packages"
-                entries={systemPackages.items}
-                query={systemPackages.query}
-                onQuery={systemPackages.setQuery}
-                matches={systemPackages.matches}
-                total={systemPackages.total}
-                empty="The image reports no system packages."
-            />
+            <section className="card">
+                <div className="card-header">
+                    <h2>Contents</h2>
+                </div>
+                <ul className="item-list">
+                    {INVENTORIES.map((inventory) => {
+                        const entries = packageEntries(details, inventory.kind);
+                        return (
+                            <li key={inventory.kind} className="item-row item-row-drill">
+                                <div className="item-main">
+                                    <span className="item-title">{inventory.title}</span>
+                                    <span className="item-description">{summarize(entries)}</span>
+                                </div>
+                                <span className="item-tag">{entries.length}</span>
+                                <DrillLink
+                                    label={inventory.title}
+                                    onOpen={() => {
+                                        onOpen(inventory.kind);
+                                    }}
+                                />
+                            </li>
+                        );
+                    })}
+                </ul>
+            </section>
         </>
     );
+}
+
+/** One row of an inventory: a package or a collection, as the image reported it. */
+interface PackageRow {
+    readonly name: string;
+    readonly version: string;
+    readonly summary?: string;
+}
+
+/** The three inventories every image reports, in display order. */
+const INVENTORIES: readonly {
+    readonly kind: ExecutionEnvironmentPackageKind;
+    readonly title: string;
+}[] = [
+    { kind: 'collections', title: executionEnvironmentPackageLabel('collections') },
+    { kind: 'python', title: executionEnvironmentPackageLabel('python') },
+    { kind: 'system', title: executionEnvironmentPackageLabel('system') },
+];
+
+/**
+ * One inventory of one image, filterable on its own page.
+ * @param props - Component properties.
+ * @param props.fullName - Image the inventory came from.
+ * @param props.kind - Which inventory to show.
+ * @returns The package list pane.
+ */
+function PackageList(props: {
+    fullName: string;
+    kind: ExecutionEnvironmentPackageKind;
+}): JSX.Element {
+    const { fullName, kind } = props;
+    const [result, setResult] = useState<ExecutionEnvironmentDetailsResult | null>(null);
+
+    useEffect(() => {
+        let active = true;
+        setResult(null);
+        void loadExecutionEnvironmentDetails(fullName).then((next) => {
+            if (active) {
+                setResult(next);
+            }
+        });
+        return () => {
+            active = false;
+        };
+    }, [fullName]);
+
+    const entries = packageEntries(result?.details, kind);
+    const haystack = useCallback(
+        (entry: PackageRow) =>
+            entry.summary === undefined
+                ? `${entry.name} ${entry.version}`
+                : `${entry.name} ${entry.version} ${entry.summary}`,
+        [],
+    );
+    const filter = useListFilter<PackageRow>(entries, haystack);
+    const title = executionEnvironmentPackageLabel(kind);
+
+    if (result === null) {
+        return (
+            <section className="card">
+                <h2>{title}</h2>
+                <p className="muted">
+                    Inspecting the image. This starts a container, so the first look takes a moment.
+                </p>
+            </section>
+        );
+    }
+
+    if (result.state === 'error' || result.details === undefined) {
+        return (
+            <section className="card">
+                <h2>{title}</h2>
+                <p className="muted">{result.detail ?? 'Could not inspect this image.'}</p>
+            </section>
+        );
+    }
+
+    return (
+        <PackageCard
+            title={title}
+            label={`Filter ${title.toLowerCase()}`}
+            unit={kind === 'collections' ? 'collections' : 'packages'}
+            entries={filter.items}
+            query={filter.query}
+            onQuery={filter.setQuery}
+            matches={filter.matches}
+            total={filter.total}
+            empty={EMPTY[kind]}
+        />
+    );
+}
+
+/** Text shown when an image reports nothing for an inventory. */
+const EMPTY: Readonly<Record<ExecutionEnvironmentPackageKind, string>> = {
+    collections: 'The image reports no collections.',
+    python: 'The image reports no Python packages.',
+    system: 'The image reports no system packages.',
+};
+
+/**
+ * Read one inventory out of a loaded image.
+ * @param details - Loaded image details, if the inspection has finished.
+ * @param kind - Which inventory to read.
+ * @returns Its entries, or an empty list.
+ */
+function packageEntries(
+    details: ExecutionEnvironmentDetails | undefined,
+    kind: ExecutionEnvironmentPackageKind,
+): readonly PackageRow[] {
+    if (details === undefined) {
+        return [];
+    }
+    if (kind === 'collections') {
+        return details.collections;
+    }
+    return kind === 'python' ? details.pythonPackages : details.systemPackages;
+}
+
+/**
+ * First few names of an inventory, for the row that opens it.
+ * @param entries - Entries the image reported.
+ * @returns A short preview, or a note that there are none.
+ */
+function summarize(entries: readonly PackageRow[]): string {
+    if (entries.length === 0) {
+        return 'None reported.';
+    }
+    const names = entries.slice(0, 3).map((entry) => entry.name);
+    return entries.length > names.length ? `${names.join(', ')}, …` : names.join(', ');
 }
 
 /**
@@ -258,6 +383,7 @@ function Fact(props: { label: string; value: string }): JSX.Element {
  * @param props - Component properties.
  * @param props.title - Card heading.
  * @param props.label - Placeholder for the filter input.
+ * @param props.unit - Noun for the row count, for example `collections`.
  * @param props.entries - Rows to show after filtering.
  * @param props.query - Current filter text.
  * @param props.onQuery - Replaces the filter text.
@@ -269,14 +395,15 @@ function Fact(props: { label: string; value: string }): JSX.Element {
 function PackageCard(props: {
     title: string;
     label: string;
-    entries: readonly { name: string; version: string; summary?: string }[];
+    unit: string;
+    entries: readonly PackageRow[];
     query: string;
     onQuery: (value: string) => void;
     matches: number;
     total: number;
     empty: string;
 }): JSX.Element {
-    const { title, label, entries, query, onQuery, matches, total, empty } = props;
+    const { title, label, unit, entries, query, onQuery, matches, total, empty } = props;
 
     return (
         <section className="card">
@@ -288,7 +415,7 @@ function PackageCard(props: {
                         ? '—'
                         : query.trim().length > 0
                           ? `${String(matches)} of ${String(total)}`
-                          : `${String(total)} packages`}
+                          : `${String(total)} ${unit}`}
                 </span>
             </div>
             {total === 0 ? (
