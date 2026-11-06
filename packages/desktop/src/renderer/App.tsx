@@ -357,7 +357,9 @@ export function App(): JSX.Element {
                                         />
                                     )}
 
-                                    {state.activeSection === 'dev-tools' && <DevToolsView />}
+                                    {state.activeSection === 'dev-tools' && (
+                                        <DevToolsView onNotice={setNotice} />
+                                    )}
 
                                     {state.activeSection === 'env-managers' && (
                                         <EnvironmentsView workspacePath={state.workspace.path} />
