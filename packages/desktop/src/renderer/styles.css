@@ -410,6 +410,24 @@ button {
     font-size: 12px;
 }
 
+/* Status bar pills double as the way into Diagnostics, like the extension's
+   status bar item. Reset the button chrome so they still read as text. */
+.status-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+.status-link:hover {
+    color: var(--accent);
+}
+
 .toast {
     position: fixed;
     right: 16px;

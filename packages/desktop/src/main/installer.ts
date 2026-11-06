@@ -82,3 +82,63 @@ export async function installDevTools(pythonPath: string): Promise<DevToolsInsta
     }
     return { state: 'ready', exitCode, output, packageCount };
 }
+
+/**
+ * Build the command that upgrades Ansible Dev Tools in an interpreter.
+ * @param pythonPath - Interpreter of the environment navita runs commands in.
+ * @returns Executable and arguments.
+ */
+export function upgradeCommand(pythonPath: string): InstallCommand {
+    return {
+        command: pythonPath,
+        args: [
+            '-m',
+            'pip',
+            'install',
+            '--upgrade',
+            '--upgrade-strategy',
+            'eager',
+            DEV_TOOLS_PACKAGE,
+        ],
+    };
+}
+
+/**
+ * Upgrade ansible-dev-tools and re-read the packages that came with it.
+ *
+ * `DevToolsService.upgrade()` is VS Code only — it drives a terminal that the
+ * extension host owns — so navita runs the same pip command itself and then
+ * asks the service to refresh, leaving the service's own semantics alone.
+ * @param pythonPath - Interpreter to upgrade in.
+ * @returns Exit code, combined output and the packages found afterwards.
+ */
+export async function upgradeDevTools(pythonPath: string): Promise<DevToolsInstallResult> {
+    const service = DevToolsService.getInstance();
+    const { command, args } = upgradeCommand(pythonPath);
+    let exitCode: number;
+    let stdout = '';
+    let stderr = '';
+    let failure: string | undefined;
+
+    try {
+        const result = await CommandService.getInstance().runCommandArgs(command, [...args]);
+        exitCode = result.exitCode;
+        stdout = result.stdout;
+        stderr = result.stderr;
+    } catch (error: unknown) {
+        exitCode = 1;
+        failure = error instanceof Error ? error.message : String(error);
+    }
+
+    try {
+        await service.refresh();
+    } catch {
+        // The command output is the useful diagnostic; package count covers the rest.
+    }
+
+    const packageCount = service.getPackages().length;
+    const output = [stdout, stderr, failure].filter(Boolean).join('\n');
+    return exitCode === 0
+        ? { state: 'ready', exitCode, output, packageCount }
+        : { state: 'error', exitCode, output, packageCount };
+}

@@ -50,6 +50,8 @@ export const IPC = {
     logsChanged: 'navita:logs-changed',
     removeRecent: 'navita:remove-recent',
     installCollection: 'navita:install-collection',
+    getDiagnostics: 'navita:get-diagnostics',
+    upgradeDevTools: 'navita:upgrade-dev-tools',
 } as const;
 
 /** Sidebar sections, in the order they are ported from the extension views. */
@@ -67,7 +69,8 @@ export type SectionId =
     | 'harness-setup'
     | 'services'
     | 'settings'
-    | 'logs';
+    | 'logs'
+    | 'diagnostics';
 
 /** Colour schemes the app can be asked to wear. */
 export type ThemeId = 'system' | 'navita-light' | 'navita-dark' | 'rhdh-light' | 'rhdh-dark';
@@ -127,6 +130,12 @@ export const SECTIONS: readonly Section[] = [
         label: 'Overview',
         group: 'home',
         sourceView: 'navitaOverview',
+    },
+    {
+        id: 'diagnostics',
+        label: 'Diagnostics',
+        group: 'home',
+        sourceView: 'navitaDiagnostics',
     },
     {
         id: 'logs',
@@ -435,6 +444,39 @@ export interface LogsResult {
     readonly dropped: number;
 }
 
+/** Python environment facts the Diagnostics page reports. */
+export interface DiagnosticsPython {
+    readonly envName?: string;
+    readonly version?: string;
+    readonly path?: string;
+}
+
+/** One tool row from `adt --version`. */
+export interface DiagnosticsToolEntry {
+    readonly name: string;
+    readonly version: string;
+}
+
+/** Status of a bundled service, in the vocabulary the shared view renders. */
+export interface DiagnosticsServiceEntry {
+    readonly name: string;
+    readonly status: 'running' | 'stopped' | 'configured' | 'not configured';
+}
+
+/**
+ * Everything the Diagnostics page shows.
+ *
+ * Structurally identical to `DiagnosticsData` in `@ansible/ui`, which the main
+ * process cannot resolve; the renderer hands this payload straight to the view.
+ */
+export interface DiagnosticsPayload {
+    readonly workspacePath?: string;
+    readonly python: DiagnosticsPython;
+    readonly ansible: { readonly version?: string };
+    readonly services: readonly DiagnosticsServiceEntry[];
+    readonly tools: readonly DiagnosticsToolEntry[];
+}
+
 /** Source labels, in the order the filter offers them. */
 export const LOG_SOURCES: readonly { readonly id: LogSource; readonly label: string }[] = [
     { id: 'app', label: 'App' },
@@ -708,6 +750,8 @@ export interface NavitaBridge {
     clearRecents(): Promise<AppState>;
     removeRecent(workspacePath: string): Promise<AppState>;
     installCollection(name: string, version?: string): Promise<CollectionInstallResult>;
+    getDiagnostics(): Promise<DiagnosticsPayload>;
+    upgradeDevTools(): Promise<DevToolsInstallResult>;
     getLogs(): Promise<LogsResult>;
     clearLogs(): Promise<LogsResult>;
     onLogsChanged(listener: (logs: LogsResult) => void): () => void;

@@ -28,7 +28,8 @@ import {
 } from '../shared/ipc';
 import { buildMenuTemplate, type MenuContext, type MenuItemSpec } from './menu';
 import { loadDevTools } from './devtools';
-import { installDevTools } from './installer';
+import { gatherDiagnostics } from './diagnostics';
+import { installDevTools, upgradeDevTools } from './installer';
 import {
     installEnvironmentResolver,
     resetEnvironmentCache,
@@ -526,6 +527,27 @@ function registerIpc(): void {
         const snippet = snippetFor(harness as HarnessId);
         void clipboard.writeText(snippet);
         return snippet;
+    });
+    ipcMain.handle(IPC.getDiagnostics, () => {
+        const state = currentState();
+        return gatherDiagnostics({
+            ...(state.workspace === null ? {} : { workspacePath: state.workspace.path }),
+            ...(state.environment === null ? {} : { environment: state.environment }),
+            mcp: state.mcp,
+            lsp: state.lsp,
+        });
+    });
+    ipcMain.handle(IPC.upgradeDevTools, async () => {
+        const resolved = await resolveEnvironment(workspace?.path ?? null, selectedEnvironment());
+        if (resolved === undefined) {
+            return {
+                state: 'error',
+                exitCode: 1,
+                output: 'No Python environment resolved. Pick one under Python environment first.',
+                packageCount: 0,
+            };
+        }
+        return upgradeDevTools(resolved.pythonPath);
     });
     ipcMain.handle(IPC.getDevTools, () => loadDevTools());
     ipcMain.handle(IPC.installDevTools, async () => {

@@ -12,6 +12,7 @@ import { CollectionSourcesView } from './components/CollectionSourcesView';
 import { EnvironmentsView } from './components/EnvironmentsView';
 import { SkillsView } from './components/SkillsView';
 import { ToolsView } from './components/ToolsView';
+import { DiagnosticsPage } from './components/DiagnosticsPage';
 import { LogsView } from './components/LogsView';
 import { SettingsView } from './components/SettingsView';
 import { Sidebar } from './components/Sidebar';
@@ -46,6 +47,9 @@ export function App(): JSX.Element {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [notice, setNotice] = useState<string | null>(null);
     const [trails, setTrails] = useState<Trails>(emptyTrails);
+    // Source the Logs page should open filtered to; reset when leaving it so a
+    // menu visit does not inherit the filter a diagnostics action asked for.
+    const [logSource, setLogSource] = useState<'all' | 'app' | 'lsp'>('all');
 
     useEffect(() => {
         let active = true;
@@ -138,10 +142,21 @@ export function App(): JSX.Element {
     // through here again.
     const navigate = useCallback(
         (section: SectionId) => {
+            if (section !== 'logs') {
+                setLogSource('all');
+            }
             setTrails((current) => truncateTrail(current, section, 0));
             run(() => window.navita.showSection(section));
         },
         [run],
+    );
+
+    const openLogs = useCallback(
+        (source: 'app' | 'lsp') => {
+            setLogSource(source);
+            navigate('logs');
+        },
+        [navigate],
     );
 
     // Back walks the view's own trail first, then falls back to the overview.
@@ -389,8 +404,16 @@ export function App(): JSX.Element {
                                         />
                                     )}
 
+                                    {state.activeSection === 'diagnostics' && (
+                                        <DiagnosticsPage
+                                            onNotice={setNotice}
+                                            onNavigate={navigate}
+                                            onOpenLogs={openLogs}
+                                        />
+                                    )}
+
                                     {state.activeSection === 'logs' && (
-                                        <LogsView onNotice={setNotice} />
+                                        <LogsView onNotice={setNotice} initialSource={logSource} />
                                     )}
 
                                     {state.activeSection === 'settings' && (
@@ -416,12 +439,26 @@ export function App(): JSX.Element {
                 </div>
 
                 <footer className="statusbar">
-                    <span>
+                    <button
+                        type="button"
+                        className="status-link"
+                        title="Open diagnostics"
+                        onClick={() => {
+                            navigate('diagnostics');
+                        }}
+                    >
                         MCP: <StatusPill state={state.mcp.state} />
-                    </span>
-                    <span>
+                    </button>
+                    <button
+                        type="button"
+                        className="status-link"
+                        title="Open diagnostics"
+                        onClick={() => {
+                            navigate('diagnostics');
+                        }}
+                    >
                         LSP: <StatusPill state={state.lsp.state} />
-                    </span>
+                    </button>
                     <span className="spacer" />
                     {state.workspace !== null && (
                         <span className="status-path" title={state.workspace.path}>

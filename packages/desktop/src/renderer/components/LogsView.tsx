@@ -26,12 +26,17 @@ function noun(count: number, singular: string): string {
  * event while the page is open, and the same lines are on disk for afterwards.
  * @param props - Component properties.
  * @param props.onNotice - Shows a short confirmation as a toast.
+ * @param props.initialSource - Source to open filtered to, when another view linked here.
  * @returns The logs panel.
  */
-export function LogsView(props: { onNotice: (message: string) => void }): JSX.Element {
-    const { onNotice } = props;
+export function LogsView(props: {
+    onNotice: (message: string) => void;
+    /** Source to open filtered to, when another view linked here. */
+    initialSource?: 'all' | LogSource;
+}): JSX.Element {
+    const { onNotice, initialSource = 'all' } = props;
     const [result, setResult] = useState<LogsResult | null>(null);
-    const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+    const [sourceFilter, setSourceFilter] = useState<SourceFilter>(initialSource);
     const [errorsOnly, setErrorsOnly] = useState(false);
     const [follow, setFollow] = useState(true);
     const listRef = useRef<HTMLUListElement | null>(null);

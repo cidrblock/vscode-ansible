@@ -166,6 +166,38 @@ async function bundleModule(entry, name) {
 }
 
 /**
+ * Prove the diagnostics payload is gathered from the tools themselves.
+ *
+ * The page reports what navita would actually run, so this checks the versions
+ * come from `ansible --version` and `adt --version` rather than a cache.
+ * @returns A promise that settles when the check is done.
+ */
+async function probeDiagnostics() {
+    const module = await bundleModule('diagnostics.ts', 'diagnostics');
+    const payload = await module.gatherDiagnostics({
+        workspacePath: WORKSPACE,
+        mcp: { state: 'ready', toolCount: 48 },
+        lsp: { state: 'ready' },
+    });
+
+    if (payload.ansible.version === undefined) {
+        fail('diagnostics: ansible version was not read from the tool');
+        return;
+    }
+    if (payload.services.some((service) => service.status !== 'running')) {
+        fail('diagnostics: ready servers were not reported as running');
+        return;
+    }
+    if (payload.tools.length === 0) {
+        console.log(`SKIP  diagnostics     ansible ${payload.ansible.version}, no adt tool list`);
+        return;
+    }
+    console.log(
+        `PASS  diagnostics     ansible ${payload.ansible.version}, ${String(payload.tools.length)} dev tools, ${String(payload.services.length)} services`,
+    );
+}
+
+/**
  * Prove the log recorder captures, redacts and rotates without a window.
  *
  * The services log through a seam VS Code filled and a packaged launch left
@@ -376,6 +408,14 @@ if (process.exitCode !== 1) {
     console.log(
         `PASS  installer       ${install.command} ${install.args.join(' ')}`,
     );
+    const upgrade = installerModule.upgradeCommand('/venv/bin/python3');
+    if (!upgrade.args.includes('--upgrade')) {
+        fail(`installer: upgrade command is not an upgrade: ${upgrade.args.join(' ')}`);
+    } else {
+        console.log(`PASS  upgrade         ${upgrade.command} ${upgrade.args.join(' ')}`);
+    }
+
+    const diagnostics = await probeDiagnostics();
 
     const toolsModule = await bundleModule('tools.ts', 'tools');
     const toolCatalog = await toolsModule.loadTools(
