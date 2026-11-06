@@ -708,6 +708,8 @@ export interface GitHubCollectionEntry {
     readonly description: string;
     readonly repository: string;
     readonly htmlUrl: string;
+    /** `git+https://…` spec `ade install` accepts for this collection. */
+    readonly installUrl: string;
     /** AI summary prompt for this collection. */
     readonly prompt: string;
 }
@@ -749,7 +751,17 @@ export interface NavitaBridge {
     updateSettings(patch: SettingsPatch): Promise<AppState>;
     clearRecents(): Promise<AppState>;
     removeRecent(workspacePath: string): Promise<AppState>;
-    installCollection(name: string, version?: string): Promise<CollectionInstallResult>;
+    /**
+     * Install a collection spec.
+     * @param spec - FQCN, `fqcn:version`, or `git+https://…` repository URL.
+     * @param version - Catalog version, when the row named one.
+     * @param lookupName - FQCN to report the version for when spec is a URL.
+     */
+    installCollection(
+        spec: string,
+        version?: string,
+        lookupName?: string,
+    ): Promise<CollectionInstallResult>;
     getDiagnostics(): Promise<DiagnosticsPayload>;
     upgradeDevTools(): Promise<DevToolsInstallResult>;
     getLogs(): Promise<LogsResult>;

@@ -634,6 +634,8 @@ if (process.exitCode !== 1) {
             );
         } else if (org.collections[0].prompt.length === 0) {
             fail('collection sources: GitHub collection rows have no prompt');
+        } else if (!org.collections.every((entry) => entry.installUrl.startsWith('git+'))) {
+            fail('collection sources: GitHub rows have no installable repository spec');
         } else {
             console.log(
                 `PASS  sources         state=${sources.state}, Galaxy=${sources.total}, GitHub rows=${String(org.collections.length)} (${org.collections.map((entry) => entry.name).join(', ')})`,

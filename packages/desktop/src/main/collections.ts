@@ -61,19 +61,22 @@ export function toCollectionEntries(collections: Iterable<CollectionData>): Coll
  *
  * `ade install` is the same call the extension makes, and the service refreshes
  * its index afterwards, so the version it reports is the one now on disk
- * rather than the one the catalog offered.
- * @param name - Collection FQCN, for example `community.general`.
+ * rather than the one the catalog offered. The spec can be an FQCN, an
+ * `fqcn:version`, or the `git+https://…` URL a source row carries.
+ * @param name - Collection spec to install.
  * @param version - Version to pin; omitted installs the latest the catalog has.
+ * @param lookupName - FQCN to report the version for when the spec is a URL.
  * @returns The command output plus the version now installed; never throws.
  */
 export async function installCollection(
     name: string,
     version?: string,
+    lookupName?: string,
 ): Promise<CollectionInstallResult> {
     const service = CollectionsService.getInstance();
     try {
         const output = await service.installCollection(name, version);
-        const installed = service.getCollection(name);
+        const installed = service.getCollection(lookupName ?? name);
         return {
             state: 'ready',
             detail: output.trim(),

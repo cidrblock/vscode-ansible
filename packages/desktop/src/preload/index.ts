@@ -53,11 +53,12 @@ const bridge: NavitaBridge = {
     clearRecents: () => ipcRenderer.invoke(IPC.clearRecents) as Promise<AppState>,
     removeRecent: (workspacePath: string) =>
         ipcRenderer.invoke(IPC.removeRecent, workspacePath) as Promise<AppState>,
-    installCollection: (name: string, version?: string) =>
+    installCollection: (spec: string, version?: string, lookupName?: string) =>
         ipcRenderer.invoke(
             IPC.installCollection,
-            name,
+            spec,
             version,
+            lookupName,
         ) as Promise<CollectionInstallResult>,
     getDevTools: () => ipcRenderer.invoke(IPC.getDevTools) as Promise<DevToolsResult>,
     installDevTools: () =>

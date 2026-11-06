@@ -493,13 +493,19 @@ function registerIpc(): void {
         broadcast();
         return currentState();
     });
-    ipcMain.handle(IPC.installCollection, (_event, name: unknown, version: unknown) =>
-        typeof name === 'string' && name.length > 0
-            ? installCollection(name, typeof version === 'string' && version ? version : undefined)
-            : Promise.resolve({
-                  state: 'error' as const,
-                  detail: 'A collection name is required.',
-              }),
+    ipcMain.handle(
+        IPC.installCollection,
+        (_event, name: unknown, version: unknown, lookupName: unknown) =>
+            typeof name === 'string' && name.length > 0
+                ? installCollection(
+                      name,
+                      typeof version === 'string' && version ? version : undefined,
+                      typeof lookupName === 'string' && lookupName ? lookupName : undefined,
+                  )
+                : Promise.resolve({
+                      state: 'error' as const,
+                      detail: 'A collection name is required.',
+                  }),
     );
     ipcMain.handle(IPC.removeRecent, (_event, candidate: unknown) => {
         if (typeof candidate === 'string' && candidate.length > 0) {

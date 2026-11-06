@@ -212,13 +212,12 @@ export function CollectionSourcesView(props: {
                         <span className="muted">Copy an AI summary prompt for this collection</span>
                     </div>
                 )}
-                {source.kind === 'galaxy' && (
-                    <InstallAction
-                        collection={collection}
-                        {...(galaxyEntry === undefined ? {} : { version: galaxyEntry.version })}
-                        onNotice={onNotice}
-                    />
-                )}
+                <InstallAction
+                    collection={collection}
+                    {...(galaxyEntry === undefined ? {} : { version: galaxyEntry.version })}
+                    {...(orgEntry === undefined ? {} : { spec: orgEntry.installUrl })}
+                    onNotice={onNotice}
+                />
             </>
         );
 
@@ -461,24 +460,27 @@ export function CollectionSourcesView(props: {
 }
 
 /**
- * Install one Galaxy collection into the active Python environment.
+ * Install one collection into the active Python environment.
  *
  * This is the step that closes the discovery loop: the collection can be
  * browsed without installing it, and this runs the same `ade install` the
- * extension does. Source collections have no button yet — installing from a
- * repository needs a requirements file, not an FQCN.
+ * extension does. A catalog collection installs by FQCN; a collection found in
+ * an organization installs from its repository, because the cache carries the
+ * `git+https://…` spec the extension's quick pick would have used.
  * @param props - Component properties.
- * @param props.collection - Collection FQCN.
+ * @param props.collection - Collection FQCN, used for messages and the version lookup.
  * @param props.version - Version the catalog offers, when it named one.
+ * @param props.spec - What to install; defaults to the FQCN.
  * @param props.onNotice - Shows the outcome as a toast.
  * @returns The install row.
  */
 function InstallAction(props: {
     collection: string;
     version?: string;
+    spec?: string;
     onNotice: (message: string) => void;
 }): JSX.Element {
-    const { collection, version, onNotice } = props;
+    const { collection, version, spec, onNotice } = props;
     const [busy, setBusy] = useState(false);
     const [installed, setInstalled] = useState<string | null>(null);
     const [failure, setFailure] = useState<string | null>(null);
@@ -487,7 +489,7 @@ function InstallAction(props: {
         setBusy(true);
         setFailure(null);
         window.navita
-            .installCollection(collection, version)
+            .installCollection(spec ?? collection, version, collection)
             .then((result) => {
                 if (result.state === 'error') {
                     setFailure(result.detail ?? 'The install failed.');
@@ -510,12 +512,13 @@ function InstallAction(props: {
             .finally(() => {
                 setBusy(false);
             });
-    }, [collection, onNotice, version]);
+    }, [collection, onNotice, spec, version]);
 
+    const target = spec === undefined ? '' : ' from its repository';
     const detail =
         failure ??
         (installed === null
-            ? 'Installs into the active Python environment with ade.'
+            ? `Installs${target} into the active Python environment with ade.`
             : `Installed ${installed} in the active Python environment.`);
 
     return (

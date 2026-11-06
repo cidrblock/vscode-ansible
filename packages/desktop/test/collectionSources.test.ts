@@ -62,7 +62,26 @@ describe('toGitHubEntries', () => {
         expect(entries[0].name).toBe('community.general');
         expect(entries[0].description).toBe('A collection of modules.');
         expect(entries[0].htmlUrl).toContain('community.general');
+        expect(entries[0].installUrl).toBe(
+            'git+https://github.com/ansible-collections/community.general.git',
+        );
         expect(entries[0].prompt).toContain('Collection: community.general');
+    });
+
+    it('carries a spec ade install accepts for every repository', () => {
+        const [entry] = toGitHubEntries([
+            {
+                namespace: 'ansible',
+                name: 'posix',
+                version: '2.1.0',
+                description: '',
+                repository: 'ansible-collections/ansible.posix',
+                org: 'ansible-collections',
+                htmlUrl: 'https://github.com/ansible-collections/ansible.posix',
+                installUrl: 'git+https://github.com/ansible-collections/ansible.posix.git',
+            },
+        ]);
+        expect(entry.installUrl.startsWith('git+https://')).toBe(true);
     });
 
     it('handles an organization with no cached collections', () => {

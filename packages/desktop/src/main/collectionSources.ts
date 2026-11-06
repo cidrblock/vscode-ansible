@@ -93,6 +93,7 @@ export function toGitHubEntries(collections: readonly GitHubCollection[]): GitHu
             description: collection.description,
             repository: collection.repository,
             htmlUrl: collection.htmlUrl,
+            installUrl: collection.installUrl,
             prompt: buildCollectionSummaryPrompt(name),
         };
     });
