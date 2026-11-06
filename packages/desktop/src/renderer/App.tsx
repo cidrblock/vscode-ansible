@@ -287,9 +287,11 @@ export function App(): JSX.Element {
     return (
         <NavigationProvider value={navigation}>
             <div className="app">
-                <header className="topbar">
-                    <span className="brand">navita</span>
-                </header>
+                {state.workspace !== null && (
+                    <header className="topbar">
+                        <ViewHeader crumbs={crumbs} canGoBack={canGoBack} onBack={back} />
+                    </header>
+                )}
 
                 <div className="body">
                     {state.workspace === null ? (
@@ -323,8 +325,6 @@ export function App(): JSX.Element {
                                 />
                             )}
                             <main className="pane">
-                                <ViewHeader crumbs={crumbs} canGoBack={canGoBack} onBack={back} />
-
                                 <div className="page" ref={pageRef}>
                                     {state.activeSection === 'overview' && (
                                         <OverviewView

@@ -132,14 +132,9 @@ button {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 12px;
+    padding: 6px 12px;
     border-bottom: 1px solid var(--border);
     background: var(--bg-raised);
-}
-
-.brand {
-    font-weight: 600;
-    letter-spacing: 0.02em;
 }
 
 .spacer {
@@ -779,11 +774,10 @@ button {
 
 .view-header {
     display: flex;
+    flex: 1;
     align-items: center;
     gap: 8px;
-    margin-bottom: 16px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--border);
+    min-width: 0;
 }
 
 .back-button {
@@ -804,7 +798,7 @@ button {
 }
 
 .crumb {
-    max-width: 34ch;
+    max-width: 48ch;
     overflow: hidden;
     padding: 2px 4px;
     font-size: 13px;

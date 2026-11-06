@@ -17,17 +17,19 @@ export interface ViewHeaderProps {
 }
 
 /**
- * Breadcrumbs and the single Back control every view shares.
+ * The app bar: breadcrumbs and the single Back control every view shares.
  *
  * Depth is expressed once, here, so a new drill-down view only has to push a
- * crumb rather than invent its own back button.
+ * crumb rather than invent its own back button. It sits above the sidebar and
+ * the pane rather than inside the pane, so the trail is the same wherever you
+ * are in the window.
  * @param props - Component properties.
- * @returns The pane header element.
+ * @returns The app bar contents.
  */
 export function ViewHeader(props: ViewHeaderProps): JSX.Element {
     const { crumbs, canGoBack, onBack } = props;
     return (
-        <header className="view-header">
+        <div className="view-header">
             {canGoBack ? (
                 <button
                     className="icon-button back-button"
@@ -60,6 +62,6 @@ export function ViewHeader(props: ViewHeaderProps): JSX.Element {
                     </Fragment>
                 ))}
             </nav>
-        </header>
+        </div>
     );
 }
