@@ -114,6 +114,15 @@ const bridge: NavitaBridge = {
             ipcRenderer.removeListener(IPC.navigateBack, handler);
         };
     },
+    onSectionRequested: (listener: (section: SectionId) => void) => {
+        const handler = (_event: IpcRendererEvent, section: SectionId): void => {
+            listener(section);
+        };
+        ipcRenderer.on(IPC.sectionRequested, handler);
+        return () => {
+            ipcRenderer.removeListener(IPC.sectionRequested, handler);
+        };
+    },
     getCollectionSources: () =>
         ipcRenderer.invoke(IPC.getCollectionSources) as Promise<CollectionSourcesResult>,
     refreshCollectionSource: (org: string) =>

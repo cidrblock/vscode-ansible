@@ -40,6 +40,7 @@ export const IPC = {
     creatorFinished: 'navita:creator-finished',
     openPath: 'navita:open-path',
     navigateBack: 'navita:navigate-back',
+    sectionRequested: 'navita:section-requested',
     installDevTools: 'navita:install-dev-tools',
     setTheme: 'navita:set-theme',
 } as const;
@@ -609,6 +610,7 @@ export interface NavitaBridge {
     onCreatorFinished(listener: (event: CreatorFinishedEvent) => void): () => void;
     openPath(target: string): Promise<void>;
     onNavigateBack(listener: () => void): () => void;
+    onSectionRequested(listener: (section: SectionId) => void): () => void;
     getCollectionSources(): Promise<CollectionSourcesResult>;
     refreshCollectionSource(org: string): Promise<CollectionSourcesResult>;
     onStateChanged(listener: (state: AppState) => void): () => void;

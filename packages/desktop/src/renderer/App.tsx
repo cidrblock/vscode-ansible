@@ -103,13 +103,6 @@ export function App(): JSX.Element {
             });
     }, []);
 
-    const selectSection = useCallback(
-        (section: SectionId) => {
-            run(() => window.navita.showSection(section));
-        },
-        [run],
-    );
-
     const copySnippet = useCallback((harness: HarnessId) => {
         window.navita
             .copySnippet(harness)
@@ -138,6 +131,9 @@ export function App(): JSX.Element {
 
     const navigation = useMemo(() => ({ trails, update: updateTrails }), [trails, updateTrails]);
 
+    // Entering a section always starts at its root. The trail of the section
+    // being left is untouched, but nothing renders it until you come back
+    // through here again.
     const navigate = useCallback(
         (section: SectionId) => {
             setTrails((current) => truncateTrail(current, section, 0));
@@ -280,6 +276,10 @@ export function App(): JSX.Element {
 
     useEffect(() => window.navita.onNavigateBack(back), [back]);
 
+    // The View menu asks for a section rather than applying it, so it takes the
+    // same path as the sidebar and resets depth on the way in.
+    useEffect(() => window.navita.onSectionRequested(navigate), [navigate]);
+
     if (state === null) {
         return <div className="loading">Starting navita…</div>;
     }
@@ -310,7 +310,7 @@ export function App(): JSX.Element {
                                 <Sidebar
                                     sections={SECTIONS}
                                     activeSection={state.activeSection}
-                                    onSelect={selectSection}
+                                    onSelect={navigate}
                                     workspace={state.workspace}
                                     recents={state.recents}
                                     onOpenWorkspace={() => {

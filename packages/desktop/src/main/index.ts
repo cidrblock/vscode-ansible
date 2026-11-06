@@ -367,10 +367,11 @@ async function handleAction(action: string, actionArg?: string): Promise<void> {
             }
             return;
         case 'show-section':
+            // The renderer owns the breadcrumb trail, so it is the one that
+            // switches section: entering a section always starts at its root,
+            // and the menu must reset depth exactly like the sidebar does.
             if (actionArg !== undefined) {
-                persisted.activeSection = actionArg as SectionId;
-                store.save(persisted);
-                broadcast();
+                mainWindow?.webContents.send(IPC.sectionRequested, actionArg);
             }
             return;
         case 'toggle-sidebar':
