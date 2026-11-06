@@ -7,6 +7,7 @@ import type { CreatorCommandEntry, CreatorResult } from '../../shared/ipc';
 import { CapNotice, FilterBox, useGroupedFilter } from '../filter';
 import { useTrail } from '../navigation';
 import { CopyButton } from './CopyButton';
+import { DrillLink } from './DrillLink';
 import { createCreatorBridge } from './creatorBridge';
 
 export interface CreatorViewProps {
@@ -183,8 +184,18 @@ export function CreatorView(props: CreatorViewProps): JSX.Element {
                             <ul className="item-list">
                                 {items.map((command) => {
                                     const schema = commandNode(result.schema, command.path);
+                                    const openForm = (): void => {
+                                        push({ id: command.path, label: command.path });
+                                    };
                                     return (
-                                        <li key={command.path} className="item-row">
+                                        <li
+                                            key={command.path}
+                                            className={
+                                                schema === null
+                                                    ? 'item-row'
+                                                    : 'item-row item-row-drill'
+                                            }
+                                        >
                                             <div className="item-main">
                                                 <span className="item-title">
                                                     {capitalize(command.name)}
@@ -195,35 +206,18 @@ export function CreatorView(props: CreatorViewProps): JSX.Element {
                                                     </span>
                                                 )}
                                             </div>
-                                            {command.required.length > 0 && (
-                                                <span className="item-tag">
-                                                    {String(command.required.length)} required
-                                                </span>
-                                            )}
-                                            <button
-                                                className="ghost"
-                                                disabled={schema === null}
-                                                title={
-                                                    schema === null
-                                                        ? 'This command has no form schema'
-                                                        : `Fill in ${command.path} and run it`
-                                                }
-                                                onClick={() => {
-                                                    if (schema !== null) {
-                                                        push({
-                                                            id: command.path,
-                                                            label: command.path,
-                                                        });
-                                                    }
-                                                }}
-                                            >
-                                                Configure
-                                            </button>
                                             <CopyButton
                                                 label={command.path}
                                                 prompt={command.command}
                                                 onCopied={onCopied}
                                             />
+                                            {schema !== null && (
+                                                <DrillLink
+                                                    label={command.path}
+                                                    title={`Fill in ${command.path} and run it`}
+                                                    onOpen={openForm}
+                                                />
+                                            )}
                                         </li>
                                     );
                                 })}
