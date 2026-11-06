@@ -108,15 +108,14 @@ export function Sidebar(props: SidebarProps): JSX.Element {
 
     const workspaceOpen = !collapsed.has(WORKSPACE_GROUP);
 
-    // The list is a switcher, not a history: alphabetical is how you find one.
-    const sortedRecents = useMemo(
-        () =>
-            [...recents].sort(
-                (left, right) =>
-                    left.name.localeCompare(right.name) || left.path.localeCompare(right.path),
-            ),
-        [recents],
-    );
+    // The selected workspace is always the first row, then the rest newest
+    // first, which is the order they were last opened in.
+    const orderedRecents = useMemo(() => {
+        const rest = recents
+            .filter((recent) => recent.path !== workspace?.path)
+            .sort((left, right) => right.openedAt - left.openedAt);
+        return workspace === null ? rest : [workspace, ...rest];
+    }, [recents, workspace]);
 
     return (
         <nav className="sidebar" aria-label="Ansible views">
@@ -136,7 +135,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                 </button>
                 {workspaceOpen && (
                     <div id="nav-group-workspace">
-                        {sortedRecents.length === 0 ? (
+                        {orderedRecents.length === 0 ? (
                             <p className="nav-empty">No recent workspaces.</p>
                         ) : (
                             <div
@@ -144,7 +143,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                                 role="radiogroup"
                                 aria-label="Workspaces"
                             >
-                                {sortedRecents.map((recent) => {
+                                {orderedRecents.map((recent) => {
                                     const current = recent.path === workspace?.path;
                                     return (
                                         <button
