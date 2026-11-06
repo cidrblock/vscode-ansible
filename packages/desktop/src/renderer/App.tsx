@@ -313,14 +313,8 @@ export function App(): JSX.Element {
                                     onSelect={navigate}
                                     workspace={state.workspace}
                                     recents={state.recents}
-                                    onOpenWorkspace={() => {
-                                        run(() => window.navita.openWorkspace());
-                                    }}
                                     onActivateWorkspace={(workspacePath) => {
                                         run(() => window.navita.activateWorkspace(workspacePath));
-                                    }}
-                                    onRescanWorkspace={() => {
-                                        run(() => window.navita.rescanWorkspace());
                                     }}
                                 />
                             )}

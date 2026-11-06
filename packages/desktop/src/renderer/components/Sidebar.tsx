@@ -13,9 +13,7 @@ export interface SidebarProps {
     onSelect: (section: SectionId) => void;
     workspace: WorkspaceEntry | null;
     recents: readonly WorkspaceEntry[];
-    onOpenWorkspace: () => void;
     onActivateWorkspace: (workspacePath: string) => void;
-    onRescanWorkspace: () => void;
 }
 
 /** Renderer storage key for collapsed sidebar groups. */
@@ -76,16 +74,7 @@ function persistCollapsed(collapsed: ReadonlySet<string>): void {
  * @returns The sidebar navigation element.
  */
 export function Sidebar(props: SidebarProps): JSX.Element {
-    const {
-        sections,
-        activeSection,
-        onSelect,
-        workspace,
-        recents,
-        onOpenWorkspace,
-        onActivateWorkspace,
-        onRescanWorkspace,
-    } = props;
+    const { sections, activeSection, onSelect, workspace, recents, onActivateWorkspace } = props;
     const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(readCollapsed);
 
     const toggleGroup = useCallback((group: string) => {
@@ -188,26 +177,6 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                                     );
                                 })}
                             </div>
-                        )}
-                        <button
-                            className="nav-action"
-                            onClick={() => {
-                                onOpenWorkspace();
-                            }}
-                        >
-                            Open Workspace…
-                            <span className="nav-shortcut">Ctrl+O</span>
-                        </button>
-                        {workspace !== null && (
-                            <button
-                                className="nav-action"
-                                onClick={() => {
-                                    onRescanWorkspace();
-                                }}
-                            >
-                                Rescan Workspace
-                                <span className="nav-shortcut">Ctrl+R</span>
-                            </button>
                         )}
                     </div>
                 )}

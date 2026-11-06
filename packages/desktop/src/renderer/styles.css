@@ -709,25 +709,6 @@ button {
     color: var(--fg-muted);
 }
 
-.nav-action {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    width: 100%;
-    padding: 4px 12px 4px 28px;
-    font-size: 12px;
-    text-align: left;
-}
-
-.nav-action:hover {
-    background: var(--nav-hover, var(--bg-input));
-}
-
-.nav-shortcut {
-    font-size: 11px;
-    color: var(--fg-muted);
-}
-
 .status-path {
     max-width: 46ch;
     overflow: hidden;
