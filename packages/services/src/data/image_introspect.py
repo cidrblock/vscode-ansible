@@ -27,14 +27,18 @@ from queue import Queue
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from typing import Any
-from typing import TypeAlias
+from typing import Dict
+from typing import List
+from typing import Union
 
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 # https://github.com/python/typing/issues/182#issuecomment-1320974824
-JSONTypes: TypeAlias = dict[str, "JSONTypes"] | list["JSONTypes"] | str | int | float | bool | None
+# A type alias is assigned at runtime, so it cannot use PEP 604 unions or
+# PEP 585 generics: execution environment images still ship Python 3.8.
+JSONTypes = Union[Dict[str, "JSONTypes"], List["JSONTypes"], str, int, float, bool, None]
 
 
 class Command(SimpleNamespace):
