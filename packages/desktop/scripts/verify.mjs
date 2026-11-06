@@ -166,6 +166,44 @@ async function bundleModule(entry, name) {
 }
 
 /**
+ * Prove the log recorder captures, redacts and rotates without a window.
+ *
+ * The services log through a seam VS Code filled and a packaged launch left
+ * pointing at a console nobody can see, so this is the check that the Logs page
+ * has anything to show.
+ * @returns A promise that settles when the check is done.
+ */
+async function probeLogs() {
+    const logsModule = await bundleModule('logs.ts', 'logs');
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'navita-verify-logs-'));
+    const file = path.join(directory, 'navita.log');
+    const secret = 's3cr3t-verify-token';
+    const recorder = logsModule.configureLogs(file, [secret]);
+    try {
+        logsModule.logLines('command', 'info', `installed using ${secret} and ghp_abcdefghijklmnopqrstuvwxyz0123`);
+        logsModule.logLines('lsp', 'info', '[WARNING]: python interpreter not configured');
+        logsModule.logLines('mcp', 'info', 'Failed to start: no such file');
+        const snapshot = logsModule.currentLogs();
+        const stored = fs.readFileSync(file, 'utf8');
+        if (snapshot.entries.length !== 3) {
+            fail(`logs: expected 3 entries, got ${String(snapshot.entries.length)}`);
+        } else if (stored.includes(secret) || stored.includes('ghp_')) {
+            fail('logs: a token reached the log file');
+        } else if (snapshot.entries[1].level !== 'warn' || snapshot.entries[2].level !== 'error') {
+            fail('logs: severities were not inferred from the message');
+        } else if (logsModule.clearLogs().entries.length !== 0 || fs.readFileSync(file, 'utf8') !== '') {
+            fail('logs: clear left lines behind');
+        } else {
+            console.log(
+                `PASS  logs            ${String(snapshot.entries.length)} lines captured, redacted, ${recorder.path.endsWith('navita.log') ? 'file written' : 'no file'}`,
+            );
+        }
+    } finally {
+        fs.rmSync(directory, { recursive: true, force: true });
+    }
+}
+
+/**
  * Bundle any workspace source file the way the main process build does.
  * @param entryPath - Absolute path to the TypeScript entry.
  * @param name - Base name for the generated CommonJS file.
@@ -574,4 +612,5 @@ if (process.exitCode !== 1) {
     }
 
     await probeResolver();
+    await probeLogs();
 }

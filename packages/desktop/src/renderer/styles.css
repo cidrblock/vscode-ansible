@@ -625,6 +625,75 @@ button {
     margin-left: 0;
 }
 
+/* Logs: filters above, a monospace buffer that scrolls on its own. */
+.log-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 12px;
+}
+
+.log-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.log-list {
+    max-height: 520px;
+    margin: 0;
+    padding: 0;
+    overflow: auto;
+    list-style: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-input);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+}
+
+.log-row {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    padding: 2px 8px;
+}
+
+.log-time {
+    flex: none;
+    color: var(--fg-muted);
+}
+
+.log-source {
+    flex: none;
+    width: 4.5em;
+    color: var(--fg-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.log-message {
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.log-error .log-message {
+    color: var(--err);
+}
+
+.log-warn .log-message {
+    color: var(--warn);
+}
+
+.log-file {
+    margin-top: 8px;
+    font-size: 11px;
+    overflow-wrap: anywhere;
+}
+
 /* The reason an install failed, beside the button that ran it. */
 .install-error {
     color: var(--err);

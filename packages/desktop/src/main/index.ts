@@ -9,6 +9,7 @@
 import { app, BrowserWindow, Menu, clipboard, dialog, ipcMain, shell } from 'electron';
 import type { MenuItemConstructorOptions } from 'electron';
 import { buildCommandArgs, CommandService, CreatorService } from '@ansible/developer-services';
+import { setLogFunction } from '@ansible/common';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -17,6 +18,7 @@ import {
     type AppState,
     type HarnessId,
     type EnvironmentSummary,
+    type LogsResult,
     type McpStatus,
     type SectionId,
     type ServerStatus,
@@ -55,9 +57,13 @@ import { invalidateToolCache, loadTools } from './tools';
 import { probeServers, serverEnv, serverSpawnSpec, type SpawnSpec } from './servers';
 import { buildSnippet } from './snippet';
 import { isThemeId, StateStore, type PersistedState } from './store';
+import { clearLogs, configureLogs, currentLogs, levelFor, logLines, onLogAppended } from './logs';
 import { isDirectory, pushRecent, removeRecent, toWorkspaceEntry } from './workspaces';
 
 const APP_NAME = 'navita';
+
+/** What the Logs page reads before the recorder exists, and after a clear. */
+const EMPTY_LOGS: LogsResult = { entries: [], filePath: '', dropped: 0 };
 
 let mainWindow: BrowserWindow | null = null;
 let store: StateStore;
@@ -181,6 +187,28 @@ function updateSettings(patch: unknown): AppState {
     store.save(persisted);
     broadcast();
     return currentState();
+}
+
+/** Pending debounce for log updates, so a chatty child cannot flood IPC. */
+let logsTimer: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Push the log buffer to the renderer, at most four times a second.
+ *
+ * The services log in bursts (a collection load prints hundreds of lines), and
+ * the page filters locally, so it only needs the newest buffer.
+ */
+function scheduleLogsBroadcast(): void {
+    if (logsTimer !== undefined) {
+        return;
+    }
+    logsTimer = setTimeout(() => {
+        logsTimer = undefined;
+        const snapshot = currentLogs();
+        if (snapshot !== undefined) {
+            mainWindow?.webContents.send(IPC.logsChanged, snapshot);
+        }
+    }, 250);
 }
 
 /**
@@ -452,6 +480,8 @@ async function handleAction(action: string, actionArg?: string): Promise<void> {
  */
 function registerIpc(): void {
     ipcMain.handle(IPC.getState, () => currentState());
+    ipcMain.handle(IPC.getLogs, () => currentLogs() ?? EMPTY_LOGS);
+    ipcMain.handle(IPC.clearLogs, () => clearLogs() ?? EMPTY_LOGS);
     ipcMain.handle(IPC.setTheme, (_event, candidate: string) =>
         isThemeId(candidate) ? setTheme(candidate) : currentState(),
     );
@@ -664,6 +694,17 @@ void app.whenReady().then(() => {
         () => workspace?.path ?? null,
         () => selectedEnvironment(),
     );
+    configureLogs(path.join(app.getPath('userData'), 'logs', 'navita.log'), [
+        process.env.GH_TOKEN ?? '',
+        process.env.GIT_TOKEN ?? '',
+        process.env.JIRA_API_TOKEN ?? '',
+    ]);
+    onLogAppended(scheduleLogsBroadcast);
+    // The services log through @ansible/common; this is the seam VS Code
+    // filled with an OutputChannel.
+    setLogFunction((message) => {
+        logLines('app', levelFor(message), message);
+    });
     store = new StateStore(path.join(app.getPath('userData'), 'state.json'));
     persisted = store.load();
     registerIpc();

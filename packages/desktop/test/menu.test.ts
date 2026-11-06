@@ -71,6 +71,13 @@ describe('buildMenuTemplate', () => {
         expect(sections[0]?.label).toBe('Overview');
     });
 
+    it('offers Logs in the View menu with a shortcut', () => {
+        const logs = find(menu({}), 'Logs');
+        expect(logs?.action).toBe('show-section');
+        expect(logs?.actionArg).toBe('logs');
+        expect(logs?.accelerator).toBe('CmdOrCtrl+Shift+U');
+    });
+
     it('offers Back in the View menu on Alt+Left', () => {
         const back = find(menu({}), 'Back');
         expect(back?.action).toBe('back');

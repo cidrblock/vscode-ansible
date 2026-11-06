@@ -12,6 +12,7 @@ import { CollectionSourcesView } from './components/CollectionSourcesView';
 import { EnvironmentsView } from './components/EnvironmentsView';
 import { SkillsView } from './components/SkillsView';
 import { ToolsView } from './components/ToolsView';
+import { LogsView } from './components/LogsView';
 import { SettingsView } from './components/SettingsView';
 import { Sidebar } from './components/Sidebar';
 import { ViewHeader, type CrumbLink } from './components/ViewHeader';
@@ -386,6 +387,10 @@ export function App(): JSX.Element {
                                             onCopied={handleCopied}
                                             onNotice={setNotice}
                                         />
+                                    )}
+
+                                    {state.activeSection === 'logs' && (
+                                        <LogsView onNotice={setNotice} />
                                     )}
 
                                     {state.activeSection === 'settings' && (

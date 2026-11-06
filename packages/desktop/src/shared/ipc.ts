@@ -45,6 +45,9 @@ export const IPC = {
     setTheme: 'navita:set-theme',
     updateSettings: 'navita:update-settings',
     clearRecents: 'navita:clear-recents',
+    getLogs: 'navita:get-logs',
+    clearLogs: 'navita:clear-logs',
+    logsChanged: 'navita:logs-changed',
     removeRecent: 'navita:remove-recent',
     installCollection: 'navita:install-collection',
 } as const;
@@ -63,7 +66,8 @@ export type SectionId =
     | 'collection-sources'
     | 'harness-setup'
     | 'services'
-    | 'settings';
+    | 'settings'
+    | 'logs';
 
 /** Colour schemes the app can be asked to wear. */
 export type ThemeId = 'system' | 'navita-light' | 'navita-dark' | 'rhdh-light' | 'rhdh-dark';
@@ -123,6 +127,12 @@ export const SECTIONS: readonly Section[] = [
         label: 'Overview',
         group: 'home',
         sourceView: 'navitaOverview',
+    },
+    {
+        id: 'logs',
+        label: 'Logs',
+        group: 'home',
+        sourceView: 'navitaLogs',
     },
     {
         id: 'dev-tools',
@@ -400,6 +410,39 @@ export interface CollectionEntry {
     readonly pluginTypes: readonly CollectionPluginType[];
 }
 
+/** Which process a log line came from. */
+export type LogSource = 'app' | 'mcp' | 'lsp' | 'command';
+
+/** Severity, inferred from the line for output navita does not control. */
+export type LogLevel = 'info' | 'warn' | 'error';
+
+/** One captured line. */
+export interface LogEntry {
+    readonly id: number;
+    /** ISO timestamp, so the renderer can format it however it likes. */
+    readonly time: string;
+    readonly source: LogSource;
+    readonly level: LogLevel;
+    readonly message: string;
+}
+
+/** Everything the Logs page shows. */
+export interface LogsResult {
+    readonly entries: readonly LogEntry[];
+    /** Rotating file the same lines are appended to. */
+    readonly filePath: string;
+    /** Lines dropped from the in-memory buffer since it last wrapped. */
+    readonly dropped: number;
+}
+
+/** Source labels, in the order the filter offers them. */
+export const LOG_SOURCES: readonly { readonly id: LogSource; readonly label: string }[] = [
+    { id: 'app', label: 'App' },
+    { id: 'mcp', label: 'MCP server' },
+    { id: 'lsp', label: 'Language server' },
+    { id: 'command', label: 'Commands' },
+];
+
 /** Outcome of installing one collection into the active environment. */
 export interface CollectionInstallResult {
     readonly state: 'ready' | 'error';
@@ -665,6 +708,9 @@ export interface NavitaBridge {
     clearRecents(): Promise<AppState>;
     removeRecent(workspacePath: string): Promise<AppState>;
     installCollection(name: string, version?: string): Promise<CollectionInstallResult>;
+    getLogs(): Promise<LogsResult>;
+    clearLogs(): Promise<LogsResult>;
+    onLogsChanged(listener: (logs: LogsResult) => void): () => void;
     getDevTools(): Promise<DevToolsResult>;
     installDevTools(): Promise<DevToolsInstallResult>;
     getEnvironments(workspacePath: string | null): Promise<EnvironmentGroupsResult>;

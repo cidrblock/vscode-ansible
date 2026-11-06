@@ -39,6 +39,11 @@ export interface MenuContext {
     readonly theme: ThemeId;
 }
 
+/** Shortcuts for sections that are not in the sidebar but deserve one. */
+const SECTION_ACCELERATORS: Readonly<Partial<Record<SectionId, string>>> = {
+    logs: 'CmdOrCtrl+Shift+U',
+};
+
 /**
  * Build one View menu entry per section, separated by sidebar group.
  * @param activeSection - Section currently shown in the pane.
@@ -54,12 +59,14 @@ function sectionMenuItems(activeSection: SectionId): MenuItemSpec[] {
             items.push({ type: 'separator' });
         }
         for (const section of grouped) {
+            const accelerator = SECTION_ACCELERATORS[section.id];
             items.push({
                 label: section.label,
                 type: 'checkbox',
                 checked: section.id === activeSection,
                 action: 'show-section',
                 actionArg: section.id,
+                ...(accelerator === undefined ? {} : { accelerator }),
             });
         }
     };

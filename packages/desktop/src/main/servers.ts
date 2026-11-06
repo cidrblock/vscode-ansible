@@ -7,10 +7,11 @@
  * so the app never needs a system Node install.
  */
 
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import * as path from 'node:path';
 
 import type { McpStatus, ServerStatus } from '../shared/ipc';
+import { levelFor, logLines } from './logs';
 
 export interface SpawnSpec {
     readonly command: string;
@@ -103,6 +104,34 @@ export function serverSpawnSpec(
 }
 
 /**
+ * Tee a server's stderr into the log buffer and keep its tail.
+ *
+ * Both probes used to pipe stderr and never read it, so a server that failed to
+ * start left the reason in a pipe nobody drained and the status pill said only
+ * "exited with code 1".
+ * @param child - Spawned server process.
+ * @param source - Which log the lines belong to.
+ * @returns Access to the tail, formatted for an error message.
+ */
+function captureStderr(child: ChildProcess, source: 'mcp' | 'lsp'): { suffix: () => string } {
+    let tail = '';
+    child.stderr?.setEncoding('utf8');
+    child.stderr?.on('data', (chunk: string) => {
+        tail = (tail + chunk).slice(-800);
+        logLines(source, levelFor(chunk), chunk);
+    });
+    return {
+        suffix: () => {
+            const lines = tail
+                .trim()
+                .split('\n')
+                .filter((line) => line.trim().length > 0);
+            return lines.length === 0 ? '' : `: ${lines.slice(-3).join(' | ')}`;
+        },
+    };
+}
+
+/**
  * Run a stdio JSON-RPC exchange to completion, then terminate the child.
  * @param spec - Command, arguments and environment for the server.
  * @param cwd - Working directory, which also acts as the default workspace.
@@ -144,6 +173,7 @@ function runStdio(
                 reject(new Error(`timed out after ${String(timeoutMs)}ms`));
             }
         }, timeoutMs);
+        const stderr = captureStderr(child, 'mcp');
         child.stdout.setEncoding('utf8');
         child.stdout.on('data', (chunk: string) => {
             buffer += chunk;
@@ -168,7 +198,7 @@ function runStdio(
             if (!settled) {
                 settled = true;
                 clearTimeout(timer);
-                reject(new Error(`server exited with code ${String(code)}`));
+                reject(new Error(`server exited with code ${String(code)}${stderr.suffix()}`));
             }
         });
         handle(ctx);
@@ -283,9 +313,14 @@ export function probeLanguageServer(
             if (!settled) {
                 settled = true;
                 child.kill();
-                reject(new Error(`language server timed out after ${String(timeoutMs)}ms`));
+                reject(
+                    new Error(
+                        `language server timed out after ${String(timeoutMs)}ms${stderr.suffix()}`,
+                    ),
+                );
             }
         }, timeoutMs);
+        const stderr = captureStderr(child, 'lsp');
         child.stdout.setEncoding('utf8');
         child.stdout.on('data', (chunk: string) => {
             buffer += chunk;
@@ -334,6 +369,15 @@ export function probeLanguageServer(
                 settled = true;
                 clearTimeout(timer);
                 reject(error);
+            }
+        });
+        child.on('exit', (code: number | null) => {
+            if (!settled) {
+                settled = true;
+                clearTimeout(timer);
+                reject(
+                    new Error(`language server exited with code ${String(code)}${stderr.suffix()}`),
+                );
             }
         });
         const rootUri = `file://${workspacePath}`;
