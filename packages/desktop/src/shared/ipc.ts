@@ -50,6 +50,8 @@ export const IPC = {
     logsChanged: 'navita:logs-changed',
     removeRecent: 'navita:remove-recent',
     installCollection: 'navita:install-collection',
+    getTerminalInfo: 'navita:get-terminal-info',
+    openTerminal: 'navita:open-terminal',
     getDiagnostics: 'navita:get-diagnostics',
     upgradeDevTools: 'navita:upgrade-dev-tools',
 } as const;
@@ -275,6 +277,11 @@ export interface AppSettings {
     readonly playbookExecutor: PlaybookExecutor;
     /** ansible-navigator configuration file; empty means the default. */
     readonly navigatorConfig: string;
+    /**
+     * How to launch the user's terminal. `{command}` is required and `{dir}` is
+     * optional; empty means detect a known terminal on PATH.
+     */
+    readonly terminal: string;
 }
 
 /** Settings a client may change; every field is optional. */
@@ -308,6 +315,7 @@ export type MenuAction =
     | { readonly id: 'close-workspace' }
     | { readonly id: 'rescan-workspace' }
     | { readonly id: 'reveal-workspace' }
+    | { readonly id: 'open-terminal' }
     | { readonly id: 'show-section'; readonly section: SectionId }
     | { readonly id: 'toggle-sidebar' }
     | { readonly id: 'back' }
@@ -461,6 +469,31 @@ export interface DiagnosticsToolEntry {
 export interface DiagnosticsServiceEntry {
     readonly name: string;
     readonly status: 'running' | 'stopped' | 'configured' | 'not configured';
+}
+
+/** A terminal navita knows how to drive, and whether it is installed. */
+export interface TerminalCandidate {
+    readonly bin: string;
+    /** Template with `{dir}` and `{command}` placeholders. */
+    readonly template: string;
+    readonly detected: boolean;
+}
+
+/** What the Terminal settings page needs to describe the current choice. */
+export interface TerminalInfo {
+    /** Stored setting; empty means automatic detection. */
+    readonly setting: string;
+    /** Template that will be used, or null when nothing usable was found. */
+    readonly template: string | null;
+    readonly candidates: readonly TerminalCandidate[];
+}
+
+/** Outcome of asking navita to open a terminal. */
+export interface TerminalOpenResult {
+    readonly state: 'ready' | 'error';
+    /** Command line handed to the shell; shown so a failure is reproducible. */
+    readonly command: string;
+    readonly detail?: string;
 }
 
 /**
@@ -762,6 +795,8 @@ export interface NavitaBridge {
         version?: string,
         lookupName?: string,
     ): Promise<CollectionInstallResult>;
+    getTerminalInfo(): Promise<TerminalInfo>;
+    openTerminal(): Promise<TerminalOpenResult>;
     getDiagnostics(): Promise<DiagnosticsPayload>;
     upgradeDevTools(): Promise<DevToolsInstallResult>;
     getLogs(): Promise<LogsResult>;

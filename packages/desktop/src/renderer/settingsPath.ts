@@ -9,7 +9,8 @@
 import type { Crumb } from './navigation';
 
 /** Pages the Settings section can show below its root. */
-export type SettingsPage = 'appearance' | 'workspace' | 'sources' | 'playbooks' | 'about';
+export type SettingsPage =
+    'appearance' | 'workspace' | 'sources' | 'playbooks' | 'terminal' | 'about';
 
 /** One settings page, as the root list shows it. */
 export interface SettingsPageInfo {
@@ -39,6 +40,11 @@ export const SETTINGS_PAGES: readonly SettingsPageInfo[] = [
         id: 'playbooks',
         title: 'Playbooks',
         description: 'How playbooks are run, and where navigator reads its configuration.',
+    },
+    {
+        id: 'terminal',
+        title: 'Terminal',
+        description: 'Which terminal navita opens, and how it is asked to run a command.',
     },
     {
         id: 'about',

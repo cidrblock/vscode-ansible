@@ -25,6 +25,8 @@ import {
     type CreatorResult,
     type CollectionSourcesResult,
     type DiagnosticsPayload,
+    type TerminalInfo,
+    type TerminalOpenResult,
     type LogsResult,
     type SkillsResult,
     type ToolsResult,
@@ -137,6 +139,8 @@ const bridge: NavitaBridge = {
             ipcRenderer.removeListener(IPC.sectionRequested, handler);
         };
     },
+    getTerminalInfo: () => ipcRenderer.invoke(IPC.getTerminalInfo) as Promise<TerminalInfo>,
+    openTerminal: () => ipcRenderer.invoke(IPC.openTerminal) as Promise<TerminalOpenResult>,
     getDiagnostics: () => ipcRenderer.invoke(IPC.getDiagnostics) as Promise<DiagnosticsPayload>,
     upgradeDevTools: () =>
         ipcRenderer.invoke(IPC.upgradeDevTools) as Promise<DevToolsInstallResult>,

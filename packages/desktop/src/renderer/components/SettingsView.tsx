@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState, type JSX } from 'react';
 
-import { THEMES, type AppSettings, type AppState, type PlaybookExecutor } from '../../shared/ipc';
+import {
+    THEMES,
+    type AppSettings,
+    type AppState,
+    type PlaybookExecutor,
+    type TerminalInfo,
+} from '../../shared/ipc';
 import { MAX_GITHUB_ORGS, PLAYBOOK_EXECUTORS } from '../../shared/settings';
 import { useTrail } from '../navigation';
 import {
@@ -44,6 +50,10 @@ export function SettingsView(props: {
 
     if (page === 'playbooks') {
         return <PlaybooksPage settings={state.settings} onNotice={onNotice} />;
+    }
+
+    if (page === 'terminal') {
+        return <TerminalPage settings={state.settings} onNotice={onNotice} />;
     }
 
     if (page === 'about') {
@@ -406,6 +416,164 @@ function PlaybooksPage(props: {
                         Save
                     </button>
                 </form>
+            </section>
+        </>
+    );
+}
+
+/**
+ * Which terminal navita opens, and the command line it uses to do it.
+ *
+ * Every desktop spells "run this in a new window" differently, so the setting
+ * is a template rather than a binary: `{command}` is required and `{dir}` is
+ * optional. The detected list is a shortcut, never a restriction.
+ * @param props - Component properties.
+ * @param props.settings - Current settings.
+ * @param props.onNotice - Shows a short confirmation as a toast.
+ * @returns The terminal settings page.
+ */
+function TerminalPage(props: {
+    settings: AppSettings;
+    onNotice: (message: string) => void;
+}): JSX.Element {
+    const { settings, onNotice } = props;
+    const [info, setInfo] = useState<TerminalInfo | null>(null);
+    const [draft, setDraft] = useState(settings.terminal);
+
+    useEffect(() => {
+        setDraft(settings.terminal);
+    }, [settings.terminal]);
+
+    const refresh = useCallback(() => {
+        window.navita
+            .getTerminalInfo()
+            .then(setInfo)
+            .catch(() => {
+                setInfo(null);
+            });
+    }, []);
+
+    useEffect(() => {
+        refresh();
+    }, [refresh]);
+
+    const save = useCallback(
+        (template: string) => {
+            window.navita
+                .updateSettings({ terminal: template })
+                .then(() => {
+                    onNotice(
+                        template.length === 0
+                            ? 'Using the detected terminal.'
+                            : 'Terminal command saved.',
+                    );
+                    refresh();
+                })
+                .catch((error: unknown) => {
+                    onNotice(error instanceof Error ? error.message : String(error));
+                });
+        },
+        [onNotice, refresh],
+    );
+
+    const test = useCallback(() => {
+        window.navita
+            .openTerminal()
+            .then((result) => {
+                onNotice(
+                    result.state === 'error'
+                        ? `Could not open a terminal. ${result.detail ?? ''}`.trim()
+                        : 'Opened a terminal in this workspace.',
+                );
+            })
+            .catch((error: unknown) => {
+                onNotice(error instanceof Error ? error.message : String(error));
+            });
+    }, [onNotice]);
+
+    const effective = info?.template ?? null;
+
+    return (
+        <>
+            <section className="card">
+                <div className="card-header">
+                    <h2>Terminal command</h2>
+                    <button className="ghost" onClick={test}>
+                        Test
+                    </button>
+                </div>
+                <p className="muted">
+                    A command line with <code>{'{command}'}</code> where the command goes and
+                    optional <code>{'{dir}'}</code> for the workspace. Leave empty to use the first
+                    detected terminal.
+                </p>
+                <form
+                    className="setting-form"
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        save(draft);
+                    }}
+                >
+                    <input
+                        className="filter-box setting-input"
+                        aria-label="Terminal command template"
+                        placeholder="ptyxis --working-directory {dir} -- {command}"
+                        value={draft}
+                        onChange={(event) => {
+                            setDraft(event.target.value);
+                        }}
+                    />
+                    <button className="ghost" type="submit">
+                        Save
+                    </button>
+                    <button
+                        className="ghost"
+                        type="button"
+                        disabled={draft.length === 0}
+                        onClick={() => {
+                            save('');
+                        }}
+                    >
+                        Use detected
+                    </button>
+                </form>
+                <pre className="install-output">
+                    {effective ?? 'No known terminal found on PATH — set a command above.'}
+                </pre>
+            </section>
+
+            <section className="card">
+                <div className="card-header">
+                    <h2>Detected terminals</h2>
+                    <span className="muted">
+                        {String(info?.candidates.filter((entry) => entry.detected).length ?? 0)}{' '}
+                        found
+                    </span>
+                </div>
+                <ul className="item-list">
+                    {(info?.candidates ?? []).map((candidate) => (
+                        <li key={candidate.bin} className="item-row">
+                            <div className="item-main">
+                                <span className="item-title">{candidate.bin}</span>
+                                <span className="item-description">{candidate.template}</span>
+                            </div>
+                            {candidate.detected ? (
+                                <span className="item-tag">installed</span>
+                            ) : (
+                                <span className="muted">not installed</span>
+                            )}
+                            <button
+                                className="ghost"
+                                disabled={!candidate.detected}
+                                onClick={() => {
+                                    save(candidate.template);
+                                }}
+                            >
+                                Use
+                            </button>
+                        </li>
+                    ))}
+                </ul>
             </section>
         </>
     );

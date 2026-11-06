@@ -151,6 +151,11 @@ export function buildMenuTemplate(context: MenuContext): MenuItemSpec[] {
                 action: 'rescan-workspace',
             },
             {
+                label: 'Open Terminal Here',
+                enabled: hasWorkspace,
+                action: 'open-terminal',
+            },
+            {
                 label: 'Copy MCP Snippet',
                 enabled: hasWorkspace,
                 submenu: HARNESSES.map((harness) => ({

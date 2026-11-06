@@ -29,6 +29,7 @@ import {
 import { buildMenuTemplate, type MenuContext, type MenuItemSpec } from './menu';
 import { loadDevTools } from './devtools';
 import { gatherDiagnostics } from './diagnostics';
+import { detectTerminals, openTerminal, resolveTerminal, shellQuote } from './terminal';
 import { installDevTools, upgradeDevTools } from './installer';
 import {
     installEnvironmentResolver,
@@ -420,6 +421,19 @@ async function handleAction(action: string, actionArg?: string): Promise<void> {
                 await activateWorkspace(workspace.path);
             }
             return;
+        case 'open-terminal':
+            if (workspace !== null) {
+                void openTerminal({
+                    dir: workspace.path,
+                    command: shellQuote(process.env.SHELL ?? '/bin/bash'),
+                    setting: persisted.settings.terminal,
+                }).then((result) => {
+                    if (result.state === 'error') {
+                        logLines('app', 'error', `Open terminal failed: ${result.detail ?? ''}`);
+                    }
+                });
+            }
+            return;
         case 'reveal-workspace':
             if (workspace !== null) {
                 shell.showItemInFolder(workspace.path);
@@ -533,6 +547,29 @@ function registerIpc(): void {
         const snippet = snippetFor(harness as HarnessId);
         void clipboard.writeText(snippet);
         return snippet;
+    });
+    ipcMain.handle(IPC.getTerminalInfo, () => {
+        const candidates = detectTerminals();
+        const resolved = resolveTerminal(persisted.settings.terminal, candidates);
+        return {
+            setting: persisted.settings.terminal,
+            template: resolved.template,
+            candidates,
+        };
+    });
+    ipcMain.handle(IPC.openTerminal, () => {
+        if (workspace === null) {
+            return {
+                state: 'error' as const,
+                command: '',
+                detail: 'Open a workspace first.',
+            };
+        }
+        return openTerminal({
+            dir: workspace.path,
+            command: shellQuote(process.env.SHELL ?? '/bin/bash'),
+            setting: persisted.settings.terminal,
+        });
     });
     ipcMain.handle(IPC.getDiagnostics, () => {
         const state = currentState();

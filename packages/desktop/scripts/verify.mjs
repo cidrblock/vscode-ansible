@@ -166,6 +166,54 @@ async function bundleModule(entry, name) {
 }
 
 /**
+ * Prove the terminal template resolution end to end without a display.
+ *
+ * A fake `ptyxis` on PATH records the arguments it was given, so the check sees
+ * exactly what the user's terminal would have been asked to run.
+ * @returns A promise that settles when the check is done.
+ */
+async function probeTerminal() {
+    const module = await bundleModule('terminal.ts', 'terminal');
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'navita-verify-terminal-'));
+    const recorded = path.join(directory, 'args.txt');
+    const fake = path.join(directory, 'ptyxis');
+    fs.writeFileSync(fake, `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(recorded)}\n`, {
+        mode: 0o755,
+    });
+
+    try {
+        const candidates = module.detectTerminals([directory]);
+        const detected = candidates.filter((entry) => entry.detected).map((entry) => entry.bin);
+        if (detected.join(',') !== 'ptyxis') {
+            fail(`terminal: expected only ptyxis detected, got ${detected.join(',') || '(none)'}`);
+            return;
+        }
+
+        const result = await module.openTerminal({
+            dir: directory,
+            command: "'ansible-playbook' 'site.yml'",
+            setting: `${fake} --working-directory {dir} -- {command}`,
+            dirs: [directory],
+        });
+        if (result.state !== 'ready') {
+            fail(`terminal: ${result.detail ?? 'did not start'}`);
+            return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        const args = fs.readFileSync(recorded, 'utf8').trim().split('\n');
+        if (args[2] !== '--' || args[3] !== 'ansible-playbook' || args[4] !== 'site.yml') {
+            fail(`terminal: unexpected argv ${args.join(' ')}`);
+            return;
+        }
+        console.log(
+            `PASS  terminal        ${path.basename(fake)} ${args.slice(1).join(' ')}`,
+        );
+    } finally {
+        fs.rmSync(directory, { recursive: true, force: true });
+    }
+}
+
+/**
  * Prove the diagnostics payload is gathered from the tools themselves.
  *
  * The page reports what navita would actually run, so this checks the versions
@@ -654,5 +702,6 @@ if (process.exitCode !== 1) {
     }
 
     await probeResolver();
+    await probeTerminal();
     await probeLogs();
 }

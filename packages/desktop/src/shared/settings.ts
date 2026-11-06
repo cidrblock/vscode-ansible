@@ -36,10 +36,14 @@ export const PLAYBOOK_EXECUTORS: readonly {
     },
 ];
 
+/** Longest terminal template the Settings page accepts. */
+export const MAX_TERMINAL_TEMPLATE = 300;
+
 export const DEFAULT_SETTINGS: AppSettings = {
     githubOrgs: [...DEFAULT_GITHUB_ORGS],
     playbookExecutor: 'ansible-navigator',
     navigatorConfig: '',
+    terminal: '',
 };
 
 /**
@@ -81,6 +85,19 @@ export function normalizeOrgs(raw: unknown): string[] {
 }
 
 /**
+ * Clean a terminal template.
+ *
+ * The value is a command line the user owns, so only the obvious damage is
+ * repaired: surrounding whitespace and an absurd length. The placeholders are
+ * checked when a terminal is opened, where the message can say which is missing.
+ * @param raw - Candidate from a state file or a settings patch.
+ * @returns The template, or an empty string for automatic detection.
+ */
+export function normalizeTerminal(raw: unknown): string {
+    return typeof raw === 'string' ? raw.trim().slice(0, MAX_TERMINAL_TEMPLATE) : '';
+}
+
+/**
  * Coerce a stored settings object into a usable one.
  * @param raw - Value read from the state file.
  * @returns Settings, falling back to the default for each field.
@@ -93,6 +110,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
         githubOrgs?: unknown;
         playbookExecutor?: unknown;
         navigatorConfig?: unknown;
+        terminal?: unknown;
     };
     return {
         githubOrgs: normalizeOrgs(candidate.githubOrgs),
@@ -103,6 +121,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
             typeof candidate.navigatorConfig === 'string'
                 ? candidate.navigatorConfig.trim()
                 : DEFAULT_SETTINGS.navigatorConfig,
+        terminal: normalizeTerminal(candidate.terminal),
     };
 }
 
@@ -123,5 +142,6 @@ export function mergeSettings(current: AppSettings, patch: unknown): AppSettings
             'playbookExecutor' in candidate ? candidate.playbookExecutor : current.playbookExecutor,
         navigatorConfig:
             'navigatorConfig' in candidate ? candidate.navigatorConfig : current.navigatorConfig,
+        terminal: 'terminal' in candidate ? candidate.terminal : current.terminal,
     });
 }
