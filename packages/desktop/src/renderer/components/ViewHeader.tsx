@@ -30,7 +30,7 @@ export function ViewHeader(props: ViewHeaderProps): JSX.Element {
     const { crumbs, canGoBack, onBack } = props;
     return (
         <div className="view-header">
-            {canGoBack ? (
+            {canGoBack && (
                 <button
                     className="icon-button back-button"
                     title="Back (Alt+Left)"
@@ -39,8 +39,6 @@ export function ViewHeader(props: ViewHeaderProps): JSX.Element {
                 >
                     ←
                 </button>
-            ) : (
-                <span className="back-spacer" aria-hidden="true" />
             )}
             <nav className="breadcrumbs" aria-label="Breadcrumb">
                 {crumbs.map((crumb, index) => (

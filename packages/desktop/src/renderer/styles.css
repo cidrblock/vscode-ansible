@@ -784,11 +784,6 @@ button {
     flex: none;
 }
 
-.back-spacer {
-    flex: none;
-    width: 26px;
-}
-
 .breadcrumbs {
     display: flex;
     align-items: center;
@@ -823,10 +818,6 @@ button {
 
 .crumb-separator {
     color: var(--fg-muted);
-}
-
-.nav-home {
-    padding-left: 12px;
 }
 
 .overview-value {
