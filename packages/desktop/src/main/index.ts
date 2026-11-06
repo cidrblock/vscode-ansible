@@ -451,7 +451,7 @@ function registerIpc(): void {
             return {
                 state: 'error',
                 exitCode: 1,
-                output: 'No Python environment resolved. Pick one in Environment Managers first.',
+                output: 'No Python environment resolved. Pick one under Python environment first.',
                 packageCount: 0,
             };
         }

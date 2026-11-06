@@ -127,14 +127,14 @@ export function OverviewView(props: OverviewViewProps): JSX.Element {
 
             <section className="card">
                 <div className="card-header">
-                    <h2>Ansible Dev Tools</h2>
+                    <h2>Developer tools</h2>
                     <button
                         className="ghost"
                         onClick={() => {
                             onGo('dev-tools');
                         }}
                     >
-                        Open Dev Tools
+                        Open tools
                     </button>
                 </div>
                 {devTools === null ? (

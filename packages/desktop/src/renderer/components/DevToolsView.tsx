@@ -37,7 +37,7 @@ export function DevToolsView(): JSX.Element {
     return (
         <section className="card">
             <div className="card-header">
-                <h2>Ansible Dev Tools</h2>
+                <h2>Developer tools</h2>
                 <FilterBox
                     label="Filter packages"
                     value={filter.query}

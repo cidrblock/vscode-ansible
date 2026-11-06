@@ -115,13 +115,13 @@ export const SECTIONS: readonly Section[] = [
     },
     {
         id: 'dev-tools',
-        label: 'Ansible Dev Tools',
+        label: 'Developer tools',
         group: 'environment',
         sourceView: 'ansibleDevToolsPackages',
     },
     {
         id: 'env-managers',
-        label: 'Environment Managers',
+        label: 'Python environment',
         group: 'environment',
         sourceView: 'ansibleDevToolsEnvManagers',
     },

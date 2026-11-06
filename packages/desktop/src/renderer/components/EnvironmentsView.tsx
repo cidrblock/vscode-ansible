@@ -75,7 +75,7 @@ export function EnvironmentsView(props: EnvironmentsViewProps): JSX.Element {
     return (
         <section className="card">
             <div className="card-header">
-                <h2>Environment Managers</h2>
+                <h2>Python environment</h2>
                 <FilterBox
                     label="Filter environments"
                     value={filter.query}
