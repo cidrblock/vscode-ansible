@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     normalizeWorkspacePath,
     pushRecent,
+    removeRecent,
     toWorkspaceEntry,
     workspaceName,
     MAX_RECENTS,
@@ -44,6 +45,19 @@ describe('pushRecent', () => {
     it('moves an existing entry to the front instead of duplicating it', () => {
         const recents = pushRecent([entry('one', 1), entry('two', 2)], entry('one', 3));
         expect(recents.map((recent) => recent.name)).toEqual(['one', 'two']);
+    });
+
+    it('forgets one entry and keeps the rest in order', () => {
+        const recents = removeRecent(
+            [entry('one', 3), entry('two', 2), entry('three', 1)],
+            '/tmp/two',
+        );
+        expect(recents.map((recent) => recent.name)).toEqual(['one', 'three']);
+    });
+
+    it('leaves the list alone when the path is not remembered', () => {
+        const existing = [entry('one', 1)];
+        expect(removeRecent(existing, '/tmp/never-opened')).toEqual(existing);
     });
 
     it('caps the list', () => {

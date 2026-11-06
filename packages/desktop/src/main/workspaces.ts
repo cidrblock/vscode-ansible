@@ -81,6 +81,22 @@ export function pushRecent(
 }
 
 /**
+ * Drop one entry from the recents list.
+ *
+ * The comparison matches `pushRecent`, so a workspace remembered with a
+ * different trailing separator still matches the row the user removed.
+ * @param recents - Existing recents, newest first.
+ * @param workspacePath - Path to forget.
+ * @returns New list without that entry; the same list when it was not there.
+ */
+export function removeRecent(
+    recents: readonly WorkspaceEntry[],
+    workspacePath: string,
+): WorkspaceEntry[] {
+    return recents.filter((recent) => !samePath(recent.path, workspacePath));
+}
+
+/**
  * Check whether a path is an existing directory.
  *
  * @param candidate - Path to test.

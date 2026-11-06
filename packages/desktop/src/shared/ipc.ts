@@ -45,6 +45,7 @@ export const IPC = {
     setTheme: 'navita:set-theme',
     updateSettings: 'navita:update-settings',
     clearRecents: 'navita:clear-recents',
+    removeRecent: 'navita:remove-recent',
 } as const;
 
 /** Sidebar sections, in the order they are ported from the extension views. */
@@ -652,6 +653,7 @@ export interface NavitaBridge {
     setTheme(theme: ThemeId): Promise<AppState>;
     updateSettings(patch: SettingsPatch): Promise<AppState>;
     clearRecents(): Promise<AppState>;
+    removeRecent(workspacePath: string): Promise<AppState>;
     getDevTools(): Promise<DevToolsResult>;
     installDevTools(): Promise<DevToolsInstallResult>;
     getEnvironments(workspacePath: string | null): Promise<EnvironmentGroupsResult>;

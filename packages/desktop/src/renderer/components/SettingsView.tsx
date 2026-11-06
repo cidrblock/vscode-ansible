@@ -200,8 +200,23 @@ function WorkspacePage(props: {
                                     <span className="item-title">{recent.name}</span>
                                     <span className="item-description">{recent.path}</span>
                                 </div>
-                                {recent.path === state.workspace?.path && (
+                                {recent.path === state.workspace?.path ? (
                                     <span className="item-tag">open</span>
+                                ) : (
+                                    <button
+                                        className="icon-button"
+                                        title={`Forget ${recent.name}`}
+                                        aria-label={`Remove ${recent.name} from recent workspaces`}
+                                        onClick={() => {
+                                            void window.navita
+                                                .removeRecent(recent.path)
+                                                .then(() => {
+                                                    onNotice(`Forgot ${recent.name}.`);
+                                                });
+                                        }}
+                                    >
+                                        ×
+                                    </button>
                                 )}
                             </li>
                         ))}

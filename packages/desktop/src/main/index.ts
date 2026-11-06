@@ -50,7 +50,7 @@ import { invalidateToolCache, loadTools } from './tools';
 import { probeServers, serverEnv, serverSpawnSpec, type SpawnSpec } from './servers';
 import { buildSnippet } from './snippet';
 import { isThemeId, StateStore, type PersistedState } from './store';
-import { isDirectory, pushRecent, toWorkspaceEntry } from './workspaces';
+import { isDirectory, pushRecent, removeRecent, toWorkspaceEntry } from './workspaces';
 
 const APP_NAME = 'navita';
 
@@ -455,6 +455,14 @@ function registerIpc(): void {
         persisted.recents = [];
         store.save(persisted);
         broadcast();
+        return currentState();
+    });
+    ipcMain.handle(IPC.removeRecent, (_event, candidate: unknown) => {
+        if (typeof candidate === 'string' && candidate.length > 0) {
+            persisted.recents = removeRecent(persisted.recents, candidate);
+            store.save(persisted);
+            broadcast();
+        }
         return currentState();
     });
     ipcMain.handle(IPC.openWorkspace, () => pickWorkspace());
