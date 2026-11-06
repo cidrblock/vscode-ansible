@@ -11,6 +11,7 @@ import type { Crumb } from './navigation';
 
 const IMAGE_PREFIX = 'ee:';
 const PACKAGES_PREFIX = 'ee#';
+const PACKAGE_PREFIX = 'ee$';
 const KIND_SEPARATOR = '|';
 
 /** Package inventories an image reports, each with its own page. */
@@ -23,6 +24,12 @@ export type ExecutionEnvironmentPlace =
           readonly level: 'packages';
           readonly fullName: string;
           readonly kind: ExecutionEnvironmentPackageKind;
+      }
+    | {
+          readonly level: 'package';
+          readonly fullName: string;
+          readonly kind: ExecutionEnvironmentPackageKind;
+          readonly name: string;
       };
 
 const KINDS: readonly ExecutionEnvironmentPackageKind[] = ['collections', 'python', 'system'];
@@ -59,6 +66,24 @@ export function executionEnvironmentPackagesCrumb(
 }
 
 /**
+ * Crumb for one package inside an inventory.
+ * @param fullName - Image the package came from.
+ * @param kind - Which inventory it belongs to.
+ * @param name - Package name, as the image reported it.
+ * @returns The crumb to push.
+ */
+export function executionEnvironmentPackageCrumb(
+    fullName: string,
+    kind: ExecutionEnvironmentPackageKind,
+    name: string,
+): Crumb {
+    return {
+        id: `${PACKAGE_PREFIX}${kind}${KIND_SEPARATOR}${fullName}${KIND_SEPARATOR}${name}`,
+        label: name,
+    };
+}
+
+/**
  * Heading for one package inventory.
  * @param kind - Which inventory.
  * @returns Its display name.
@@ -78,6 +103,25 @@ export function parseExecutionEnvironmentTrail(
     const deepest = trail.at(-1);
     if (deepest === undefined) {
         return undefined;
+    }
+
+    if (deepest.id.startsWith(PACKAGE_PREFIX)) {
+        const parts = deepest.id.slice(PACKAGE_PREFIX.length).split(KIND_SEPARATOR);
+        if (parts.length < 3) {
+            return undefined;
+        }
+        const kind = parts[0] ?? '';
+        const name = parts[parts.length - 1] ?? '';
+        const fullName = parts.slice(1, -1).join(KIND_SEPARATOR);
+        if (!KINDS.includes(kind as ExecutionEnvironmentPackageKind) || name === '') {
+            return undefined;
+        }
+        return {
+            level: 'package',
+            fullName,
+            kind: kind as ExecutionEnvironmentPackageKind,
+            name,
+        };
     }
 
     if (deepest.id.startsWith(PACKAGES_PREFIX)) {

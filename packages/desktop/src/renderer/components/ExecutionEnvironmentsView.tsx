@@ -4,6 +4,7 @@ import type {
     ExecutionEnvironmentDetails,
     ExecutionEnvironmentDetailsResult,
     ExecutionEnvironmentsResult,
+    PythonPackageEntry,
 } from '../../shared/ipc';
 import {
     forgetExecutionEnvironmentDetails,
@@ -11,6 +12,7 @@ import {
 } from '../executionEnvironmentDetails';
 import {
     executionEnvironmentCrumb,
+    executionEnvironmentPackageCrumb,
     executionEnvironmentPackageLabel,
     executionEnvironmentPackagesCrumb,
     parseExecutionEnvironmentTrail,
@@ -32,8 +34,25 @@ export function ExecutionEnvironmentsView(): JSX.Element {
     const { trail, push } = useTrail('execution-environments');
     const place = parseExecutionEnvironmentTrail(trail);
 
+    if (place?.level === 'package') {
+        return <PackageDetails fullName={place.fullName} kind={place.kind} name={place.name} />;
+    }
+
     if (place?.level === 'packages') {
-        return <PackageList fullName={place.fullName} kind={place.kind} />;
+        const { fullName, kind } = place;
+        return (
+            <PackageList
+                fullName={fullName}
+                kind={kind}
+                onOpen={
+                    kind === 'python'
+                        ? (name) => {
+                              push(executionEnvironmentPackageCrumb(fullName, kind, name));
+                          }
+                        : undefined
+                }
+            />
+        );
     }
 
     if (place !== undefined) {
@@ -233,13 +252,6 @@ function EnvironmentDetails(props: {
     );
 }
 
-/** One row of an inventory: a package or a collection, as the image reported it. */
-interface PackageRow {
-    readonly name: string;
-    readonly version: string;
-    readonly summary?: string;
-}
-
 /** The three inventories every image reports, in display order. */
 const INVENTORIES: readonly {
     readonly kind: ExecutionEnvironmentPackageKind;
@@ -255,13 +267,15 @@ const INVENTORIES: readonly {
  * @param props - Component properties.
  * @param props.fullName - Image the inventory came from.
  * @param props.kind - Which inventory to show.
+ * @param props.onOpen - Opens one package, when this inventory has a detail page.
  * @returns The package list pane.
  */
 function PackageList(props: {
     fullName: string;
     kind: ExecutionEnvironmentPackageKind;
+    onOpen?: (name: string) => void;
 }): JSX.Element {
-    const { fullName, kind } = props;
+    const { fullName, kind, onOpen } = props;
     const [result, setResult] = useState<ExecutionEnvironmentDetailsResult | null>(null);
 
     useEffect(() => {
@@ -279,13 +293,13 @@ function PackageList(props: {
 
     const entries = packageEntries(result?.details, kind);
     const haystack = useCallback(
-        (entry: PackageRow) =>
+        (entry: PythonPackageEntry) =>
             entry.summary === undefined
                 ? `${entry.name} ${entry.version}`
                 : `${entry.name} ${entry.version} ${entry.summary}`,
         [],
     );
-    const filter = useListFilter<PackageRow>(entries, haystack);
+    const filter = useListFilter<PythonPackageEntry>(entries, haystack);
     const title = executionEnvironmentPackageLabel(kind);
 
     if (result === null) {
@@ -319,8 +333,117 @@ function PackageList(props: {
             matches={filter.matches}
             total={filter.total}
             empty={EMPTY[kind]}
+            onOpen={onOpen}
         />
     );
+}
+
+/**
+ * One package of an image, with the metadata the introspection reported.
+ * @param props - Component properties.
+ * @param props.fullName - Image the package came from.
+ * @param props.kind - Inventory it belongs to.
+ * @param props.name - Package name exactly as the image reported it.
+ * @returns The package pane.
+ */
+function PackageDetails(props: {
+    fullName: string;
+    kind: ExecutionEnvironmentPackageKind;
+    name: string;
+}): JSX.Element {
+    const { fullName, kind, name } = props;
+    const [result, setResult] = useState<ExecutionEnvironmentDetailsResult | null>(null);
+
+    useEffect(() => {
+        let active = true;
+        setResult(null);
+        void loadExecutionEnvironmentDetails(fullName).then((next) => {
+            if (active) {
+                setResult(next);
+            }
+        });
+        return () => {
+            active = false;
+        };
+    }, [fullName]);
+
+    if (result === null) {
+        return (
+            <section className="card">
+                <h2>{name}</h2>
+                <p className="muted">
+                    Inspecting the image. This starts a container, so the first look takes a moment.
+                </p>
+            </section>
+        );
+    }
+
+    if (result.state === 'error' || result.details === undefined) {
+        return (
+            <section className="card">
+                <h2>{name}</h2>
+                <p className="muted">{result.detail ?? 'Could not inspect this image.'}</p>
+            </section>
+        );
+    }
+
+    const entry = findPackage(result.details, kind, name);
+    if (entry === undefined) {
+        return (
+            <section className="card">
+                <h2>{name}</h2>
+                <p className="muted">
+                    This image does not report a package called “{name}” in{' '}
+                    {executionEnvironmentPackageLabel(kind).toLowerCase()}.
+                </p>
+            </section>
+        );
+    }
+
+    const author = [entry.author, entry['author-email']]
+        .filter((part) => part !== undefined && part.length > 0)
+        .join(' · ');
+    const requires = entry.requires?.join(', ');
+    const requiredBy = entry['required-by']?.join(', ');
+
+    return (
+        <section className="card">
+            <div className="card-header">
+                <h2>{entry.name}</h2>
+                <span className="item-tag">{entry.version}</span>
+            </div>
+            <dl className="facts">
+                {entry.summary !== undefined && <Fact label="Summary" value={entry.summary} />}
+                {entry.license !== undefined && <Fact label="License" value={entry.license} />}
+                {author.length > 0 && <Fact label="Author" value={author} />}
+                {entry['home-page'] !== undefined && (
+                    <Fact label="Home page" value={entry['home-page']} />
+                )}
+                {entry.location !== undefined && <Fact label="Location" value={entry.location} />}
+                {requires !== undefined && requires.length > 0 && (
+                    <Fact label="Requires" value={requires} />
+                )}
+                {requiredBy !== undefined && requiredBy.length > 0 && (
+                    <Fact label="Required by" value={requiredBy} />
+                )}
+            </dl>
+        </section>
+    );
+}
+
+/**
+ * Look one package up by name.
+ * @param details - Loaded image details.
+ * @param kind - Inventory the package belongs to.
+ * @param name - Package name as the image reported it.
+ * @returns The entry, or undefined when the image no longer lists it.
+ */
+function findPackage(
+    details: ExecutionEnvironmentDetails,
+    kind: ExecutionEnvironmentPackageKind,
+    name: string,
+): PythonPackageEntry | undefined {
+    return packageEntries(details, kind).find((entry) => entry.name === name);
 }
 
 /** Text shown when an image reports nothing for an inventory. */
@@ -339,7 +462,7 @@ const EMPTY: Readonly<Record<ExecutionEnvironmentPackageKind, string>> = {
 function packageEntries(
     details: ExecutionEnvironmentDetails | undefined,
     kind: ExecutionEnvironmentPackageKind,
-): readonly PackageRow[] {
+): readonly PythonPackageEntry[] {
     if (details === undefined) {
         return [];
     }
@@ -354,7 +477,7 @@ function packageEntries(
  * @param entries - Entries the image reported.
  * @returns A short preview, or a note that there are none.
  */
-function summarize(entries: readonly PackageRow[]): string {
+function summarize(entries: readonly PythonPackageEntry[]): string {
     if (entries.length === 0) {
         return 'None reported.';
     }
@@ -390,20 +513,22 @@ function Fact(props: { label: string; value: string }): JSX.Element {
  * @param props.matches - Rows matching the query, before the render cap.
  * @param props.total - Rows the image reported.
  * @param props.empty - Text shown when the image reported nothing.
+ * @param props.onOpen - Opens one package, when its inventory has a detail page.
  * @returns The card element.
  */
 function PackageCard(props: {
     title: string;
     label: string;
     unit: string;
-    entries: readonly PackageRow[];
+    entries: readonly PythonPackageEntry[];
     query: string;
     onQuery: (value: string) => void;
     matches: number;
     total: number;
     empty: string;
+    onOpen?: (name: string) => void;
 }): JSX.Element {
-    const { title, label, unit, entries, query, onQuery, matches, total, empty } = props;
+    const { title, label, unit, entries, query, onQuery, matches, total, empty, onOpen } = props;
 
     return (
         <section className="card">
@@ -426,7 +551,12 @@ function PackageCard(props: {
                 <>
                     <ul className="item-list">
                         {entries.map((entry) => (
-                            <li key={entry.name} className="item-row">
+                            <li
+                                key={entry.name}
+                                className={
+                                    onOpen === undefined ? 'item-row' : 'item-row item-row-drill'
+                                }
+                            >
                                 <div className="item-main">
                                     <span className="item-title">{entry.name}</span>
                                     {entry.summary !== undefined && entry.summary.length > 0 && (
@@ -434,6 +564,14 @@ function PackageCard(props: {
                                     )}
                                 </div>
                                 <span className="item-tag">{entry.version}</span>
+                                {onOpen !== undefined && (
+                                    <DrillLink
+                                        label={entry.name}
+                                        onOpen={() => {
+                                            onOpen(entry.name);
+                                        }}
+                                    />
+                                )}
                             </li>
                         ))}
                     </ul>

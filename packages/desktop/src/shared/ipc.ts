@@ -427,9 +427,22 @@ export interface PackageEntry {
     readonly version: string;
 }
 
-/** A Python distribution, which also carries a one-line summary. */
+/**
+ * A Python distribution.
+ *
+ * The introspection script reads the whole `pip` metadata file, so these fields
+ * are already in the payload; they are optional because only Python entries
+ * carry them.
+ */
 export interface PythonPackageEntry extends PackageEntry {
     readonly summary?: string;
+    readonly 'home-page'?: string;
+    readonly author?: string;
+    readonly 'author-email'?: string;
+    readonly license?: string;
+    readonly location?: string;
+    readonly requires?: readonly string[];
+    readonly 'required-by'?: readonly string[];
 }
 
 /** Everything navita shows for one execution environment. */

@@ -426,6 +426,21 @@ if (process.exitCode !== 1) {
                 console.log(
                     `PASS  ee-details      ${detail.fullName}: ${String(detail.collections.length)} collection(s), ${String(detail.pythonPackages.length)} python, ${String(detail.systemPackages.length)} system`,
                 );
+
+                // The package page reads pip metadata, which is only useful if it
+                // survives the trip from the container to the IPC payload.
+                const sample = detail.pythonPackages[0];
+                const metadata =
+                    sample === undefined
+                        ? []
+                        : Object.keys(sample).filter((key) => key !== 'name' && key !== 'version');
+                if (sample !== undefined && metadata.length === 0) {
+                    fail(`ee-package: ${sample.name} carries no metadata beyond name and version`);
+                } else if (sample !== undefined) {
+                    console.log(
+                        `PASS  ee-package      ${sample.name} carries ${String(metadata.length)} field(s): ${metadata.join(', ')}`,
+                    );
+                }
             }
         }
     }
