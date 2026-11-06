@@ -41,6 +41,15 @@ function groupCommands(
 }
 
 /**
+ * Capitalise the first letter of a command name for display.
+ * @param name - Command name as the schema reports it, for example `resource collection`.
+ * @returns The same name with an upper-case first letter.
+ */
+function capitalize(name: string): string {
+    return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+/**
  * Walk the creator schema to the node a catalog row describes.
  * @param schema - Root of the `ansible-creator schema` tree.
  * @param path - Command path as shown in the catalog, for example `init collection`.
@@ -177,15 +186,14 @@ export function CreatorView(props: CreatorViewProps): JSX.Element {
                                     return (
                                         <li key={command.path} className="item-row">
                                             <div className="item-main">
-                                                <span className="item-title">{command.name}</span>
+                                                <span className="item-title">
+                                                    {capitalize(command.name)}
+                                                </span>
                                                 {command.description !== undefined && (
                                                     <span className="item-description">
                                                         {command.description}
                                                     </span>
                                                 )}
-                                                <code className="command-template">
-                                                    {command.command}
-                                                </code>
                                             </div>
                                             {command.required.length > 0 && (
                                                 <span className="item-tag">
