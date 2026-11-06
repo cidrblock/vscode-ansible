@@ -212,6 +212,13 @@ export function CollectionSourcesView(props: {
                         <span className="muted">Copy an AI summary prompt for this collection</span>
                     </div>
                 )}
+                {source.kind === 'galaxy' && (
+                    <InstallAction
+                        collection={collection}
+                        {...(galaxyEntry === undefined ? {} : { version: galaxyEntry.version })}
+                        onNotice={onNotice}
+                    />
+                )}
             </>
         );
 
@@ -450,5 +457,73 @@ export function CollectionSourcesView(props: {
                 </p>
             )}
         </section>
+    );
+}
+
+/**
+ * Install one Galaxy collection into the active Python environment.
+ *
+ * This is the step that closes the discovery loop: the collection can be
+ * browsed without installing it, and this runs the same `ade install` the
+ * extension does. Source collections have no button yet — installing from a
+ * repository needs a requirements file, not an FQCN.
+ * @param props - Component properties.
+ * @param props.collection - Collection FQCN.
+ * @param props.version - Version the catalog offers, when it named one.
+ * @param props.onNotice - Shows the outcome as a toast.
+ * @returns The install row.
+ */
+function InstallAction(props: {
+    collection: string;
+    version?: string;
+    onNotice: (message: string) => void;
+}): JSX.Element {
+    const { collection, version, onNotice } = props;
+    const [busy, setBusy] = useState(false);
+    const [installed, setInstalled] = useState<string | null>(null);
+    const [failure, setFailure] = useState<string | null>(null);
+
+    const install = useCallback(() => {
+        setBusy(true);
+        setFailure(null);
+        window.navita
+            .installCollection(collection, version)
+            .then((result) => {
+                if (result.state === 'error') {
+                    setFailure(result.detail ?? 'The install failed.');
+                    onNotice(`Could not install ${collection}.`);
+                    return;
+                }
+                const reported = result.installedVersion ?? version ?? '';
+                setInstalled(reported);
+                onNotice(
+                    reported.length === 0
+                        ? `Installed ${collection}.`
+                        : `Installed ${collection} ${reported}.`,
+                );
+            })
+            .catch((error: unknown) => {
+                const message = error instanceof Error ? error.message : String(error);
+                setFailure(message);
+                onNotice(`Could not install ${collection}.`);
+            })
+            .finally(() => {
+                setBusy(false);
+            });
+    }, [collection, onNotice, version]);
+
+    const detail =
+        failure ??
+        (installed === null
+            ? 'Installs into the active Python environment with ade.'
+            : `Installed ${installed} in the active Python environment.`);
+
+    return (
+        <div className="lead-actions">
+            <button className="ghost" disabled={busy} onClick={install}>
+                {busy ? 'Installing…' : installed === null ? 'Install' : 'Reinstall'}
+            </button>
+            <span className={failure === null ? 'muted' : 'install-error'}>{detail}</span>
+        </div>
     );
 }

@@ -46,6 +46,7 @@ export const IPC = {
     updateSettings: 'navita:update-settings',
     clearRecents: 'navita:clear-recents',
     removeRecent: 'navita:remove-recent',
+    installCollection: 'navita:install-collection',
 } as const;
 
 /** Sidebar sections, in the order they are ported from the extension views. */
@@ -399,6 +400,15 @@ export interface CollectionEntry {
     readonly pluginTypes: readonly CollectionPluginType[];
 }
 
+/** Outcome of installing one collection into the active environment. */
+export interface CollectionInstallResult {
+    readonly state: 'ready' | 'error';
+    /** Command output, or the reason the install failed. */
+    readonly detail?: string;
+    /** Version the environment reports once the install has finished. */
+    readonly installedVersion?: string;
+}
+
 export interface CollectionsResult {
     readonly state: 'ready' | 'error';
     readonly collections: readonly CollectionEntry[];
@@ -654,6 +664,7 @@ export interface NavitaBridge {
     updateSettings(patch: SettingsPatch): Promise<AppState>;
     clearRecents(): Promise<AppState>;
     removeRecent(workspacePath: string): Promise<AppState>;
+    installCollection(name: string, version?: string): Promise<CollectionInstallResult>;
     getDevTools(): Promise<DevToolsResult>;
     installDevTools(): Promise<DevToolsInstallResult>;
     getEnvironments(workspacePath: string | null): Promise<EnvironmentGroupsResult>;

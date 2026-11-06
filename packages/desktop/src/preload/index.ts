@@ -10,6 +10,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import {
     IPC,
     type AppState,
+    type CollectionInstallResult,
     type DevToolsInstallResult,
     type DevToolsResult,
     type CollectionPluginsResult,
@@ -50,6 +51,12 @@ const bridge: NavitaBridge = {
     clearRecents: () => ipcRenderer.invoke(IPC.clearRecents) as Promise<AppState>,
     removeRecent: (workspacePath: string) =>
         ipcRenderer.invoke(IPC.removeRecent, workspacePath) as Promise<AppState>,
+    installCollection: (name: string, version?: string) =>
+        ipcRenderer.invoke(
+            IPC.installCollection,
+            name,
+            version,
+        ) as Promise<CollectionInstallResult>,
     getDevTools: () => ipcRenderer.invoke(IPC.getDevTools) as Promise<DevToolsResult>,
     installDevTools: () =>
         ipcRenderer.invoke(IPC.installDevTools) as Promise<DevToolsInstallResult>,

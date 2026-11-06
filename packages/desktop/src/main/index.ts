@@ -35,7 +35,12 @@ import {
     summarizeEnvironment,
 } from './environment';
 import { loadEnvironments } from './environments';
-import { loadCollectionPlugins, loadCollections, loadPluginDoc } from './collections';
+import {
+    installCollection,
+    loadCollectionPlugins,
+    loadCollections,
+    loadPluginDoc,
+} from './collections';
 import { loadSourcePluginDoc, loadSourcePlugins } from './sourceCollections';
 import {
     loadExecutionEnvironmentDetails,
@@ -457,6 +462,14 @@ function registerIpc(): void {
         broadcast();
         return currentState();
     });
+    ipcMain.handle(IPC.installCollection, (_event, name: unknown, version: unknown) =>
+        typeof name === 'string' && name.length > 0
+            ? installCollection(name, typeof version === 'string' && version ? version : undefined)
+            : Promise.resolve({
+                  state: 'error' as const,
+                  detail: 'A collection name is required.',
+              }),
+    );
     ipcMain.handle(IPC.removeRecent, (_event, candidate: unknown) => {
         if (typeof candidate === 'string' && candidate.length > 0) {
             persisted.recents = removeRecent(persisted.recents, candidate);

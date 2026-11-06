@@ -625,6 +625,12 @@ button {
     margin-left: 0;
 }
 
+/* The reason an install failed, beside the button that ran it. */
+.install-error {
+    color: var(--err);
+    font-size: 12px;
+}
+
 .playbook-group {
     margin-bottom: 14px;
 }

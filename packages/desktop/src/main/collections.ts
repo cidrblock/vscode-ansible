@@ -15,6 +15,7 @@ import type { CollectionData } from '@ansible/developer-services';
 
 import type {
     CollectionEntry,
+    CollectionInstallResult,
     CollectionPluginsResult,
     CollectionsResult,
     PluginDocResult,
@@ -53,6 +54,37 @@ export function toCollectionEntries(collections: Iterable<CollectionData>): Coll
         });
     }
     return entries.sort((left, right) => left.name.localeCompare(right.name));
+}
+
+/**
+ * Install one collection into the active Python environment.
+ *
+ * `ade install` is the same call the extension makes, and the service refreshes
+ * its index afterwards, so the version it reports is the one now on disk
+ * rather than the one the catalog offered.
+ * @param name - Collection FQCN, for example `community.general`.
+ * @param version - Version to pin; omitted installs the latest the catalog has.
+ * @returns The command output plus the version now installed; never throws.
+ */
+export async function installCollection(
+    name: string,
+    version?: string,
+): Promise<CollectionInstallResult> {
+    const service = CollectionsService.getInstance();
+    try {
+        const output = await service.installCollection(name, version);
+        const installed = service.getCollection(name);
+        return {
+            state: 'ready',
+            detail: output.trim(),
+            ...(installed === undefined ? {} : { installedVersion: installed.info.version }),
+        };
+    } catch (error: unknown) {
+        return {
+            state: 'error',
+            detail: error instanceof Error ? error.message : String(error),
+        };
+    }
 }
 
 /**
