@@ -402,8 +402,16 @@ describe('ExecutionEnvService', () => {
             await svc.loadExecutionEnvironments();
             const pkgs = await svc.getSystemPackages('quay.io/ansible/ee-supported:latest');
             expect(pkgs).toEqual([
-                { name: 'bash', version: '5.2.26-1.el9' },
-                { name: 'openssl', version: '3.2.1-2.el9' },
+                {
+                    name: 'bash',
+                    version: '5.2.26-1.el9',
+                    architecture: 'x86_64',
+                    description: 'GNU Bourne Again shell',
+                    size: '7.5M',
+                    license: 'GPLv3+',
+                    url: 'https://www.gnu.org/software/bash',
+                },
+                { name: 'openssl', version: '3.2.1-2.el9', architecture: 'x86_64' },
             ]);
         });
 

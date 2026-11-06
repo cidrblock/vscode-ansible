@@ -452,6 +452,24 @@ export interface PythonPackageEntry extends PackageEntry {
     readonly 'required-by'?: readonly string[];
 }
 
+/**
+ * A system (rpm) package.
+ *
+ * `version` is the full version-release string. The remaining fields mirror the
+ * rpm query and arrive only when the package reports them.
+ */
+export interface SystemPackageEntry extends PackageEntry {
+    readonly architecture?: string;
+    readonly summary?: string;
+    readonly description?: string;
+    readonly license?: string;
+    readonly size?: string;
+    readonly vendor?: string;
+    readonly packager?: string;
+    readonly url?: string;
+    readonly group?: string;
+}
+
 /** Everything navita shows for one execution environment. */
 export interface ExecutionEnvironmentDetails {
     readonly fullName: string;
@@ -464,7 +482,7 @@ export interface ExecutionEnvironmentDetails {
     };
     readonly collections: readonly PackageEntry[];
     readonly pythonPackages: readonly PythonPackageEntry[];
-    readonly systemPackages: readonly PackageEntry[];
+    readonly systemPackages: readonly SystemPackageEntry[];
 }
 
 export interface ExecutionEnvironmentDetailsResult {

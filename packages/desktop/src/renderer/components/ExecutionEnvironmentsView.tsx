@@ -5,6 +5,7 @@ import type {
     ExecutionEnvironmentDetailsResult,
     ExecutionEnvironmentsResult,
     PythonPackageEntry,
+    SystemPackageEntry,
 } from '../../shared/ipc';
 import {
     forgetExecutionEnvironmentDetails,
@@ -45,11 +46,11 @@ export function ExecutionEnvironmentsView(): JSX.Element {
                 fullName={fullName}
                 kind={kind}
                 onOpen={
-                    kind === 'python'
-                        ? (name) => {
+                    kind === 'collections'
+                        ? undefined
+                        : (name) => {
                               push(executionEnvironmentPackageCrumb(fullName, kind, name));
                           }
-                        : undefined
                 }
             />
         );
@@ -293,13 +294,13 @@ function PackageList(props: {
 
     const entries = packageEntries(result?.details, kind);
     const haystack = useCallback(
-        (entry: PythonPackageEntry) =>
-            entry.summary === undefined
-                ? `${entry.name} ${entry.version}`
-                : `${entry.name} ${entry.version} ${entry.summary}`,
+        (entry: InventoryEntry) =>
+            [entry.name, entry.version, entry.summary, entry.description]
+                .filter((part) => part !== undefined && part.length > 0)
+                .join(' '),
         [],
     );
-    const filter = useListFilter<PythonPackageEntry>(entries, haystack);
+    const filter = useListFilter<InventoryEntry>(entries, haystack);
     const title = executionEnvironmentPackageLabel(kind);
 
     if (result === null) {
@@ -370,7 +371,7 @@ function PackageDetails(props: {
     if (result === null) {
         return (
             <section className="card">
-                <h2>{name}</h2>
+                <h2 className="package-title">{name}</h2>
                 <p className="muted">
                     Inspecting the image. This starts a container, so the first look takes a moment.
                 </p>
@@ -381,7 +382,7 @@ function PackageDetails(props: {
     if (result.state === 'error' || result.details === undefined) {
         return (
             <section className="card">
-                <h2>{name}</h2>
+                <h2 className="package-title">{name}</h2>
                 <p className="muted">{result.detail ?? 'Could not inspect this image.'}</p>
             </section>
         );
@@ -391,7 +392,7 @@ function PackageDetails(props: {
     if (entry === undefined) {
         return (
             <section className="card">
-                <h2>{name}</h2>
+                <h2 className="package-title">{name}</h2>
                 <p className="muted">
                     This image does not report a package called “{name}” in{' '}
                     {executionEnvironmentPackageLabel(kind).toLowerCase()}.
@@ -405,19 +406,27 @@ function PackageDetails(props: {
         .join(' · ');
     const requires = entry.requires?.join(', ');
     const requiredBy = entry['required-by']?.join(', ');
+    const homepage = entry['home-page'] ?? entry.url;
 
     return (
         <section className="card">
             <div className="card-header">
-                <h2>{entry.name}</h2>
-                <span className="item-tag">{entry.version}</span>
+                <h2 className="package-title">{entry.name}</h2>
+                <span className="item-tag version">{entry.version}</span>
             </div>
             <dl className="facts">
                 {entry.summary !== undefined && <Fact label="Summary" value={entry.summary} />}
+                {entry.architecture !== undefined && (
+                    <Fact label="Architecture" value={entry.architecture} />
+                )}
                 {entry.license !== undefined && <Fact label="License" value={entry.license} />}
+                {entry.size !== undefined && <Fact label="Size" value={entry.size} />}
+                {entry.vendor !== undefined && <Fact label="Vendor" value={entry.vendor} />}
+                {entry.packager !== undefined && <Fact label="Packager" value={entry.packager} />}
+                {entry.group !== undefined && <Fact label="Group" value={entry.group} />}
                 {author.length > 0 && <Fact label="Author" value={author} />}
-                {entry['home-page'] !== undefined && (
-                    <Fact label="Home page" value={entry['home-page']} />
+                {homepage !== undefined && homepage.length > 0 && (
+                    <Fact label="Home page" value={homepage} />
                 )}
                 {entry.location !== undefined && <Fact label="Location" value={entry.location} />}
                 {requires !== undefined && requires.length > 0 && (
@@ -427,6 +436,9 @@ function PackageDetails(props: {
                     <Fact label="Required by" value={requiredBy} />
                 )}
             </dl>
+            {entry.description !== undefined && entry.description.length > 0 && (
+                <p className="package-description">{entry.description}</p>
+            )}
         </section>
     );
 }
@@ -442,9 +454,17 @@ function findPackage(
     details: ExecutionEnvironmentDetails,
     kind: ExecutionEnvironmentPackageKind,
     name: string,
-): PythonPackageEntry | undefined {
+): InventoryEntry | undefined {
     return packageEntries(details, kind).find((entry) => entry.name === name);
 }
+
+/**
+ * A row in any inventory.
+ *
+ * Every inventory reports a name and version; Python and system packages add
+ * their own optional metadata, so the union of both is what a row may carry.
+ */
+type InventoryEntry = PythonPackageEntry & SystemPackageEntry;
 
 /** Text shown when an image reports nothing for an inventory. */
 const EMPTY: Readonly<Record<ExecutionEnvironmentPackageKind, string>> = {
@@ -462,7 +482,7 @@ const EMPTY: Readonly<Record<ExecutionEnvironmentPackageKind, string>> = {
 function packageEntries(
     details: ExecutionEnvironmentDetails | undefined,
     kind: ExecutionEnvironmentPackageKind,
-): readonly PythonPackageEntry[] {
+): readonly InventoryEntry[] {
     if (details === undefined) {
         return [];
     }
@@ -477,7 +497,7 @@ function packageEntries(
  * @param entries - Entries the image reported.
  * @returns A short preview, or a note that there are none.
  */
-function summarize(entries: readonly PythonPackageEntry[]): string {
+function summarize(entries: readonly InventoryEntry[]): string {
     if (entries.length === 0) {
         return 'None reported.';
     }
@@ -520,7 +540,7 @@ function PackageCard(props: {
     title: string;
     label: string;
     unit: string;
-    entries: readonly PythonPackageEntry[];
+    entries: readonly InventoryEntry[];
     query: string;
     onQuery: (value: string) => void;
     matches: number;
@@ -563,7 +583,7 @@ function PackageCard(props: {
                                         <span className="item-description">{entry.summary}</span>
                                     )}
                                 </div>
-                                <span className="item-tag">{entry.version}</span>
+                                <span className="item-tag version">{entry.version}</span>
                                 {onOpen !== undefined && (
                                     <DrillLink
                                         label={entry.name}

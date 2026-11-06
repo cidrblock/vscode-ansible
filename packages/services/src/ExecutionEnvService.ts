@@ -511,10 +511,13 @@ export class ExecutionEnvService {
     /**
      * Get system packages installed in an execution environment.
      *
+     * The rpm metadata rides along when the package reports it, so the package
+     * page can show architecture, licence and description without a second
+     * container run.
      * @param fullName - Full image name to inspect.
-     * @returns Sorted system package name and version pairs from EE details.
+     * @returns Sorted system packages, with name and version always set.
      */
-    public async getSystemPackages(fullName: string): Promise<{ name: string; version: string }[]> {
+    public async getSystemPackages(fullName: string): Promise<SystemPackageRecord[]> {
         const details = await this.loadDetails(fullName);
         if (!details?.system_packages?.details) {
             return [];
@@ -528,6 +531,7 @@ export class ExecutionEnvService {
                         ? `${pkg.version}-${pkg.release}`
                         : pkg.version
                     : '',
+                ...pickSystemFields(pkg),
             }))
             .filter((pkg) => pkg.name !== '')
             .sort((a, b) => a.name.localeCompare(b.name));
@@ -649,6 +653,26 @@ export interface PythonPackageDetail {
 }
 
 /**
+ * One system (rpm) package inside an EE.
+ *
+ * `version` is the full version-release string the views display; every other
+ * field is present only when the package reports it.
+ */
+export interface SystemPackageRecord {
+    name: string;
+    version: string;
+    architecture?: string;
+    summary?: string;
+    description?: string;
+    license?: string;
+    size?: string;
+    vendor?: string;
+    packager?: string;
+    url?: string;
+    group?: string;
+}
+
+/**
  * Detailed metadata for a single system package inside an EE.
  */
 export interface SystemPackageDetail {
@@ -660,6 +684,38 @@ export interface SystemPackageDetail {
     size: string;
     license: string;
     url: string;
+}
+
+/** Fields the rpm query reports beyond the name and version. */
+const SYSTEM_PACKAGE_FIELDS = [
+    'architecture',
+    'summary',
+    'description',
+    'license',
+    'size',
+    'vendor',
+    'packager',
+    'url',
+    'group',
+] as const;
+
+/**
+ * Copy the rpm metadata one record carries, skipping absent or empty values.
+ *
+ * A package that reports only a name and version keeps exactly that shape, so
+ * minimal records stay minimal on the wire.
+ * @param pkg - One record from the introspection payload.
+ * @returns The optional fields that are present.
+ */
+function pickSystemFields(pkg: Record<string, string | undefined>): Partial<SystemPackageRecord> {
+    const picked: Partial<SystemPackageRecord> = {};
+    for (const field of SYSTEM_PACKAGE_FIELDS) {
+        const value = pkg[field];
+        if (value !== undefined && value !== '') {
+            picked[field] = value;
+        }
+    }
+    return picked;
 }
 
 /**

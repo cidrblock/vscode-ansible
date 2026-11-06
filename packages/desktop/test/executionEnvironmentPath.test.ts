@@ -49,6 +49,23 @@ describe('executionEnvironmentPath', () => {
         });
     });
 
+    it('carries a system package through every level', () => {
+        const name = 'quay.io/ansible/ansible-runner:latest';
+        const trail = [
+            executionEnvironmentCrumb(name),
+            executionEnvironmentPackagesCrumb(name, 'system'),
+            executionEnvironmentPackageCrumb(name, 'system', 'bash'),
+        ];
+
+        expect(trail.slice(1).map((crumb) => crumb.label)).toEqual(['System packages', 'bash']);
+        expect(parseExecutionEnvironmentTrail(trail)).toEqual({
+            level: 'package',
+            fullName: name,
+            kind: 'system',
+            name: 'bash',
+        });
+    });
+
     it('labels each inventory', () => {
         expect(executionEnvironmentPackageLabel('collections')).toBe('Ansible collections');
         expect(executionEnvironmentPackageLabel('system')).toBe('System packages');

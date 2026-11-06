@@ -464,6 +464,14 @@ button {
     overflow-wrap: anywhere;
 }
 
+/* The long-form description of an rpm package, below its facts. */
+.package-description {
+    margin: 14px 0 0;
+    color: var(--fg-muted);
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+
 .item-list {
     list-style: none;
     margin: 0;
@@ -563,6 +571,19 @@ button {
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 1px 5px;
+}
+
+/* Package versions are identifiers, not labels: keep the casing rpm and pip use. */
+.item-tag.version {
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+/* A package name is also an identifier, so it keeps its own casing. */
+.card h2.package-title {
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 15px;
 }
 
 .icon-button {

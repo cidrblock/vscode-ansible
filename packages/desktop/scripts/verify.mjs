@@ -441,6 +441,23 @@ if (process.exitCode !== 1) {
                         `PASS  ee-package      ${sample.name} carries ${String(metadata.length)} field(s): ${metadata.join(', ')}`,
                     );
                 }
+
+                // System packages get the same treatment, from the rpm query.
+                const system = detail.systemPackages.find((pkg) =>
+                    ['architecture', 'license', 'summary', 'description'].every(
+                        (field) => typeof pkg[field] === 'string' && pkg[field] !== '',
+                    ),
+                );
+                if (system === undefined) {
+                    fail('ee-system-pkg: no system package carries rpm metadata');
+                } else {
+                    const fields = Object.keys(system).filter(
+                        (key) => key !== 'name' && key !== 'version',
+                    );
+                    console.log(
+                        `PASS  ee-system-pkg   ${system.name} ${system.version} carries ${String(fields.length)} field(s): ${fields.join(', ')}`,
+                    );
+                }
             }
         }
     }
