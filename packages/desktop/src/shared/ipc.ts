@@ -106,6 +106,12 @@ export interface Section {
     readonly sourceView: string;
 }
 
+/**
+ * Every section, in the order the sidebar and the View menu show them.
+ *
+ * Alphabetical within each group: the drawers are lists to scan, not a
+ * narrative, and `sections.test.ts` keeps them that way.
+ */
 export const SECTIONS: readonly Section[] = [
     {
         id: 'overview',
@@ -126,16 +132,40 @@ export const SECTIONS: readonly Section[] = [
         sourceView: 'ansibleDevToolsEnvManagers',
     },
     {
+        id: 'harness-setup',
+        label: 'Harness Setup',
+        group: 'ai',
+        sourceView: 'navitaHarnessSetup',
+    },
+    {
+        id: 'services',
+        label: 'Services',
+        group: 'ai',
+        sourceView: 'navitaServices',
+    },
+    {
+        id: 'ai-skills',
+        label: 'Skills',
+        group: 'ai',
+        sourceView: 'ansibleSkills',
+    },
+    {
         id: 'ai-tools',
-        label: 'AI Tools',
+        label: 'Tools',
         group: 'ai',
         sourceView: 'ansibleMcpTools',
     },
     {
-        id: 'ai-skills',
-        label: 'AI Skills',
-        group: 'ai',
-        sourceView: 'ansibleSkills',
+        id: 'collection-sources',
+        label: 'Collection Sources',
+        group: 'content',
+        sourceView: 'ansibleCollectionSources',
+    },
+    {
+        id: 'creator',
+        label: 'Creator',
+        group: 'content',
+        sourceView: 'ansibleCreator',
     },
     {
         id: 'execution-environments',
@@ -154,30 +184,6 @@ export const SECTIONS: readonly Section[] = [
         label: 'Playbooks',
         group: 'content',
         sourceView: 'ansiblePlaybooks',
-    },
-    {
-        id: 'creator',
-        label: 'Creator',
-        group: 'content',
-        sourceView: 'ansibleCreator',
-    },
-    {
-        id: 'collection-sources',
-        label: 'Collection Sources',
-        group: 'content',
-        sourceView: 'ansibleCollectionSources',
-    },
-    {
-        id: 'harness-setup',
-        label: 'Harness Setup',
-        group: 'ai',
-        sourceView: 'navitaHarnessSetup',
-    },
-    {
-        id: 'services',
-        label: 'Services',
-        group: 'ai',
-        sourceView: 'navitaServices',
     },
 ];
 

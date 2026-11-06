@@ -44,7 +44,7 @@ export function ToolsView(props: { onCopied: (label: string) => void }): JSX.Ele
     return (
         <section className="card">
             <div className="card-header">
-                <h2>AI Tools</h2>
+                <h2>Tools</h2>
                 <FilterBox label="Filter tools" value={filter.query} onChange={filter.setQuery} />
                 <span className="muted">
                     {result === null

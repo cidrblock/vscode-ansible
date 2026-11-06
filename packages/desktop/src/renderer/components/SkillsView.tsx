@@ -45,7 +45,7 @@ export function SkillsView(props: { onCopied: (label: string) => void }): JSX.El
     return (
         <section className="card">
             <div className="card-header">
-                <h2>AI Skills</h2>
+                <h2>Skills</h2>
                 <FilterBox label="Filter skills" value={filter.query} onChange={filter.setQuery} />
                 <span className="muted">
                     {result === null

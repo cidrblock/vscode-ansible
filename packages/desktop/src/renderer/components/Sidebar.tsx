@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type JSX } from 'react';
+import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
 
 import {
     SECTION_GROUPS,
@@ -119,6 +119,16 @@ export function Sidebar(props: SidebarProps): JSX.Element {
 
     const workspaceOpen = !collapsed.has(WORKSPACE_GROUP);
 
+    // The list is a switcher, not a history: alphabetical is how you find one.
+    const sortedRecents = useMemo(
+        () =>
+            [...recents].sort(
+                (left, right) =>
+                    left.name.localeCompare(right.name) || left.path.localeCompare(right.path),
+            ),
+        [recents],
+    );
+
     return (
         <nav className="sidebar" aria-label="Ansible views">
             <div className="nav-group">
@@ -137,7 +147,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                 </button>
                 {workspaceOpen && (
                     <div id="nav-group-workspace">
-                        {recents.length === 0 ? (
+                        {sortedRecents.length === 0 ? (
                             <p className="nav-empty">No recent workspaces.</p>
                         ) : (
                             <div
@@ -145,7 +155,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
                                 role="radiogroup"
                                 aria-label="Workspaces"
                             >
-                                {recents.map((recent) => {
+                                {sortedRecents.map((recent) => {
                                     const current = recent.path === workspace?.path;
                                     return (
                                         <button
