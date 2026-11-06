@@ -28,6 +28,7 @@ export const IPC = {
     getSourcePluginDoc: 'navita:get-source-plugin-doc',
     getPluginDoc: 'navita:get-plugin-doc',
     getExecutionEnvironments: 'navita:get-execution-environments',
+    getExecutionEnvironmentDetails: 'navita:get-execution-environment-details',
     getPlaybooks: 'navita:get-playbooks',
     getCreator: 'navita:get-creator',
     getCollectionSources: 'navita:get-collection-sources',
@@ -420,6 +421,38 @@ export interface ExecutionEnvironmentsResult {
     readonly detail?: string;
 }
 
+/** A package inside an image, as the introspection script reports it. */
+export interface PackageEntry {
+    readonly name: string;
+    readonly version: string;
+}
+
+/** A Python distribution, which also carries a one-line summary. */
+export interface PythonPackageEntry extends PackageEntry {
+    readonly summary?: string;
+}
+
+/** Everything navita shows for one execution environment. */
+export interface ExecutionEnvironmentDetails {
+    readonly fullName: string;
+    readonly imageId?: string;
+    readonly created?: string;
+    readonly info: {
+        readonly ansible?: string;
+        readonly os?: string;
+        readonly image?: string;
+    };
+    readonly collections: readonly PackageEntry[];
+    readonly pythonPackages: readonly PythonPackageEntry[];
+    readonly systemPackages: readonly PackageEntry[];
+}
+
+export interface ExecutionEnvironmentDetailsResult {
+    readonly state: 'ready' | 'error';
+    readonly details?: ExecutionEnvironmentDetails;
+    readonly detail?: string;
+}
+
 /** One play inside a playbook, with the line it starts on. */
 export interface PlayEntry {
     readonly name: string;
@@ -555,6 +588,7 @@ export interface NavitaBridge {
     ): Promise<PluginDocResult>;
     getPluginDoc(fqcn: string, pluginType: string): Promise<PluginDocResult>;
     getExecutionEnvironments(): Promise<ExecutionEnvironmentsResult>;
+    getExecutionEnvironmentDetails(fullName: string): Promise<ExecutionEnvironmentDetailsResult>;
     getPlaybooks(workspacePath: string | null): Promise<PlaybooksResult>;
     getCreator(): Promise<CreatorResult>;
     runCreator(path: readonly string[], values: Record<string, unknown>): Promise<void>;

@@ -413,6 +413,21 @@ if (process.exitCode !== 1) {
         console.log(
             `PASS  exec-envs        ${executionEnvironments.environments.length} EE image(s) found`,
         );
+
+        // Drilling in runs a container, so it is only checked when an image is
+        // actually present; a machine without one is not a failure.
+        const firstEe = executionEnvironments.environments[0];
+        if (firstEe !== undefined) {
+            const eeDetails = await eeModule.loadExecutionEnvironmentDetails(firstEe.fullName);
+            if (eeDetails.state === 'error' || eeDetails.details === undefined) {
+                fail(`execution environment details: ${eeDetails.detail ?? 'no details'}`);
+            } else {
+                const detail = eeDetails.details;
+                console.log(
+                    `PASS  ee-details      ${detail.fullName}: ${String(detail.collections.length)} collection(s), ${String(detail.pythonPackages.length)} python, ${String(detail.systemPackages.length)} system`,
+                );
+            }
+        }
     }
 
     const playbooksModule = await bundleModule('playbooks.ts', 'playbooks');

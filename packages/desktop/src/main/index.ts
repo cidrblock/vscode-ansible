@@ -37,7 +37,10 @@ import {
 import { loadEnvironments } from './environments';
 import { loadCollectionPlugins, loadCollections, loadPluginDoc } from './collections';
 import { loadSourcePluginDoc, loadSourcePlugins } from './sourceCollections';
-import { loadExecutionEnvironments } from './executionEnvironments';
+import {
+    loadExecutionEnvironmentDetails,
+    loadExecutionEnvironments,
+} from './executionEnvironments';
 import { loadPlaybooks } from './playbooks';
 import { findSchemaNode, loadCreator } from './creator';
 import { loadCollectionSources, refreshCollectionSource } from './collectionSources';
@@ -508,6 +511,9 @@ function registerIpc(): void {
             loadSourcePluginDoc(app.getPath('userData'), source, fqcn, pluginType),
     );
     ipcMain.handle(IPC.getExecutionEnvironments, () => loadExecutionEnvironments());
+    ipcMain.handle(IPC.getExecutionEnvironmentDetails, (_event, fullName: string) =>
+        loadExecutionEnvironmentDetails(fullName),
+    );
     ipcMain.handle(IPC.getPlaybooks, (_event, workspacePath: string | null) =>
         loadPlaybooks(workspacePath),
     );

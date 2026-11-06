@@ -18,6 +18,7 @@ import {
     type SourceCollectionRef,
     type SourcePluginsResult,
     type EnvironmentGroupsResult,
+    type ExecutionEnvironmentDetailsResult,
     type ExecutionEnvironmentsResult,
     type PlaybooksResult,
     type CreatorResult,
@@ -75,6 +76,11 @@ const bridge: NavitaBridge = {
         ) as Promise<PluginDocResult>,
     getExecutionEnvironments: () =>
         ipcRenderer.invoke(IPC.getExecutionEnvironments) as Promise<ExecutionEnvironmentsResult>,
+    getExecutionEnvironmentDetails: (fullName: string) =>
+        ipcRenderer.invoke(
+            IPC.getExecutionEnvironmentDetails,
+            fullName,
+        ) as Promise<ExecutionEnvironmentDetailsResult>,
     getPlaybooks: (workspacePath: string | null) =>
         ipcRenderer.invoke(IPC.getPlaybooks, workspacePath) as Promise<PlaybooksResult>,
     getCreator: () => ipcRenderer.invoke(IPC.getCreator) as Promise<CreatorResult>,

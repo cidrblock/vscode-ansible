@@ -64,6 +64,22 @@ function copySkills() {
     fs.cpSync(source, destination, { recursive: true });
 }
 
+/**
+ * Copy the introspection scripts ExecutionEnvService mounts into a container.
+ *
+ * The service looks for `data/` next to its own bundle, and dist/data is one of
+ * its candidates from both dist/main and dist/verify. Without this, opening an
+ * execution environment fails with "Vendored introspection scripts not found".
+ */
+function copyServiceData() {
+    const source = path.join(REPO, 'packages', 'services', 'src', 'data');
+    const destination = path.join(DIST, 'data');
+    if (!fs.existsSync(source)) {
+        throw new Error(`missing service data directory: ${source}`);
+    }
+    fs.cpSync(source, destination, { recursive: true });
+}
+
 async function buildRenderer() {
     const { build } = await import('vite');
     await build({
@@ -104,4 +120,5 @@ if (watch) {
     await Promise.all(contexts.map((context) => context.watch()));
 }
 copySkills();
+copyServiceData();
 await buildRenderer();

@@ -451,6 +451,24 @@ button {
     color: var(--fg-muted);
 }
 
+/* Label/value pairs, used for image facts. */
+.facts {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 6px 16px;
+    margin: 0;
+}
+
+.facts dt {
+    color: var(--fg-muted);
+    font-size: 12px;
+}
+
+.facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
 .item-list {
     list-style: none;
     margin: 0;
