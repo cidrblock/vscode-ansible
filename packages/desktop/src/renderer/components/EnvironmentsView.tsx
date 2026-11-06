@@ -115,7 +115,14 @@ export function EnvironmentsView(props: EnvironmentsViewProps): JSX.Element {
                             <h3>{group.label}</h3>
                             <ul className="item-list">
                                 {items.map((environment) => (
-                                    <li key={environment.pythonPath} className="item-row">
+                                    <li
+                                        key={environment.pythonPath}
+                                        className={
+                                            environment.active
+                                                ? 'item-row'
+                                                : 'item-row item-row-action'
+                                        }
+                                    >
                                         <div className="item-main">
                                             <span className="item-title">{environment.name}</span>
                                             <span className="item-description">
@@ -129,15 +136,15 @@ export function EnvironmentsView(props: EnvironmentsViewProps): JSX.Element {
                                             <span className="pill pill-ready">in use</span>
                                         ) : (
                                             <button
-                                                className="ghost"
+                                                type="button"
+                                                className="row-hit"
                                                 disabled={busy}
                                                 title={`Run Ansible commands with ${environment.pythonPath}`}
+                                                aria-label={`Use ${environment.name}`}
                                                 onClick={() => {
                                                     choose(environment.pythonPath);
                                                 }}
-                                            >
-                                                Use
-                                            </button>
+                                            />
                                         )}
                                     </li>
                                 ))}

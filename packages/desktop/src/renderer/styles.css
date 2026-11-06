@@ -495,16 +495,20 @@ button {
  * carries the click, the chevron only marks the direction, and any real control
  * inside the row is lifted above the overlay so it keeps its own hit area.
  */
-.item-row-drill {
+/* A row that does something when clicked: it drills in, or picks a value. */
+.item-row-drill,
+.item-row-action {
     position: relative;
     cursor: pointer;
 }
 
-.item-row-drill:hover {
+.item-row-drill:hover,
+.item-row-action:hover {
     box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-.item-row-drill > .icon-button {
+.item-row-drill > .icon-button,
+.item-row-action > .icon-button {
     position: relative;
     /* Above the row overlay: a copy button must keep its own hit area. */
     z-index: 2;
