@@ -166,6 +166,46 @@ export class CommandService {
     }
 
     /**
+     * Root directory of a virtual environment, given its bin directory.
+     *
+     * A venv is identified by the `pyvenv.cfg` beside its `bin`/`Scripts`
+     * directory, which is the same marker the discovery code uses.
+     * @param binDir - Directory holding the environment's executables.
+     * @returns The environment root, or undefined when the bin dir is not a venv.
+     */
+    private static _venvRoot(binDir: string): string | undefined {
+        const root = path.dirname(binDir);
+        return fs.existsSync(path.join(root, 'pyvenv.cfg')) ? root : undefined;
+    }
+
+    /**
+     * Build the environment a child process runs in.
+     *
+     * The resolved bin dir goes first on PATH, and VIRTUAL_ENV names its root
+     * when it is a virtual environment. Tools decide what to act on from
+     * VIRTUAL_ENV: without it `ade install` creates a `.venv` in the working
+     * directory instead of using the environment the app resolved, and pip
+     * warns that it is not in a virtual environment at all.
+     * @param binDir - Resolved environment bin dir, or null when none.
+     * @param overrides - Caller-supplied variables, which win over the defaults.
+     * @returns Environment variables for the child process.
+     */
+    private static _childEnv(
+        binDir: string | null,
+        overrides: Record<string, string | undefined> = {},
+    ): Record<string, string | undefined> {
+        const processPath = process.env.PATH ?? '';
+        const envPath = binDir ? `${binDir}${path.delimiter}${processPath}` : processPath;
+        const root = binDir === null ? undefined : CommandService._venvRoot(binDir);
+        return {
+            ...process.env,
+            PATH: envPath,
+            ...(root === undefined ? {} : { VIRTUAL_ENV: root }),
+            ...overrides,
+        };
+    }
+
+    /**
      * Run a raw command string with venv-aware PATH and workspace cwd defaults.
      *
      * @param command - Full shell command to execute.
@@ -178,14 +218,7 @@ export class CommandService {
 
         // Merge environment with venv's bin in PATH
         const binDir = await this.getBinDir();
-        const processPath = process.env.PATH ?? '';
-        const envPath = binDir ? `${binDir}${path.delimiter}${processPath}` : processPath;
-
-        const env: Record<string, string | undefined> = {
-            ...process.env,
-            PATH: envPath,
-            ...options.env,
-        };
+        const env = CommandService._childEnv(binDir, options.env);
 
         try {
             const { stdout, stderr } = await execAsync(command, {
@@ -229,14 +262,7 @@ export class CommandService {
         const maxBuffer = options.maxBuffer ?? 10 * 1024 * 1024;
 
         const binDir = await this.getBinDir();
-        const processPath = process.env.PATH ?? '';
-        const envPath = binDir ? `${binDir}${path.delimiter}${processPath}` : processPath;
-
-        const env: Record<string, string | undefined> = {
-            ...process.env,
-            PATH: envPath,
-            ...options.env,
-        };
+        const env = CommandService._childEnv(binDir, options.env);
 
         try {
             const { stdout, stderr } = await execFileAsync(file, args, {
