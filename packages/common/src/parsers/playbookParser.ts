@@ -148,6 +148,21 @@ export function buildPlaybookFlags(config: PlaybookConfig): string[] {
 }
 
 /**
+ * Build ansible-playbook arguments from configuration.
+ *
+ * The argv form exists for callers that spawn the command rather than paste it:
+ * each word reaches the shell pre-split, so a playbook path containing a space
+ * or a dollar sign cannot turn into a second command.
+ *
+ * @param playbookPath - Path to the playbook file (appended last).
+ * @param config - Effective run settings.
+ * @returns Arguments, executable first.
+ */
+export function buildPlaybookArgs(playbookPath: string, config: PlaybookConfig): string[] {
+    return ['ansible-playbook', ...buildPlaybookFlags(config), playbookPath];
+}
+
+/**
  * Build an ansible-playbook CLI command string from configuration.
  *
  * @param playbookPath - Path to the playbook file (appended last).
@@ -155,22 +170,21 @@ export function buildPlaybookFlags(config: PlaybookConfig): string[] {
  * @returns Space-joined ansible-playbook command.
  */
 export function buildPlaybookCommand(playbookPath: string, config: PlaybookConfig): string {
-    const args = ['ansible-playbook', ...buildPlaybookFlags(config), playbookPath];
-    return args.map(quoteIfNeeded).join(' ');
+    return buildPlaybookArgs(playbookPath, config).map(quoteIfNeeded).join(' ');
 }
 
 /**
- * Build an ansible-navigator run command string from playbook configuration.
+ * Build an ansible-navigator run argument list from playbook configuration.
  *
- * Uses `--mode stdout` for predictable output in VS Code's integrated terminal.
- * Playbook flags are passed after `--` so ansible-navigator forwards them to
- * the underlying ansible-playbook invocation.
+ * Uses `--mode stdout` for predictable output in a plain terminal. Playbook
+ * flags are passed after `--` so ansible-navigator forwards them to the
+ * underlying ansible-playbook invocation.
  *
  * @param playbookPath - Path to the playbook file.
  * @param config - Effective run settings.
- * @returns Space-joined ansible-navigator run command.
+ * @returns Arguments, executable first.
  */
-export function buildNavigatorCommand(playbookPath: string, config: PlaybookConfig): string {
+export function buildNavigatorArgs(playbookPath: string, config: PlaybookConfig): string[] {
     const args: string[] = ['ansible-navigator', 'run', playbookPath, '--mode', 'stdout'];
 
     const passthroughFlags = buildPlaybookFlags(config);
@@ -178,7 +192,18 @@ export function buildNavigatorCommand(playbookPath: string, config: PlaybookConf
         args.push('--', ...passthroughFlags);
     }
 
-    return args.map(quoteIfNeeded).join(' ');
+    return args;
+}
+
+/**
+ * Build an ansible-navigator run command string from playbook configuration.
+ *
+ * @param playbookPath - Path to the playbook file.
+ * @param config - Effective run settings.
+ * @returns Space-joined ansible-navigator run command.
+ */
+export function buildNavigatorCommand(playbookPath: string, config: PlaybookConfig): string {
+    return buildNavigatorArgs(playbookPath, config).map(quoteIfNeeded).join(' ');
 }
 
 /** Options for ansible-navigator execution environment integration. */

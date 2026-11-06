@@ -1,5 +1,7 @@
 import type { JSX } from 'react';
 
+import { ClipboardIcon } from './icons';
+
 /**
  * Icon button that copies a prompt to the clipboard.
  * @param props - Component properties.
@@ -32,12 +34,7 @@ export function CopyButton(props: {
                     });
             }}
         >
-            <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
-                <path
-                    d="M6 2.5h4a1 1 0 0 1 1 1V4h1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h1v-.5a1 1 0 0 1 1-1Zm4 1.5V3H6v1h4ZM4 5v8h8V5H4Z"
-                    fill="currentColor"
-                />
-            </svg>
+            <ClipboardIcon />
         </button>
     );
 }

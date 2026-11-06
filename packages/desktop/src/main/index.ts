@@ -14,22 +14,34 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import {
+    HARNESSES,
     IPC,
     type AppState,
     type HarnessId,
     type EnvironmentSummary,
     type LogsResult,
     type McpStatus,
+    type OpenTerminalRequest,
     type SectionId,
     type ServerStatus,
     type SourceCollectionRef,
+    type TerminalOpenResult,
     type ThemeId,
     type WorkspaceEntry,
 } from '../shared/ipc';
 import { buildMenuTemplate, type MenuContext, type MenuItemSpec } from './menu';
 import { loadDevTools } from './devtools';
 import { gatherDiagnostics } from './diagnostics';
-import { detectTerminals, openTerminal, resolveTerminal, shellQuote } from './terminal';
+import {
+    commandLine,
+    detectTerminals,
+    findOnPath,
+    openTerminal,
+    parseOpenTerminalRequest,
+    resolveTerminal,
+    shellQuote,
+} from './terminal';
+import { planPlaybookRun } from './playbookRun';
 import { installDevTools, upgradeDevTools } from './installer';
 import {
     installEnvironmentResolver,
@@ -394,6 +406,34 @@ function snippetFor(harness: HarnessId): string {
 }
 
 /**
+ * Open the user's terminal, showing nothing and logging a failure.
+ *
+ * Every entry point funnels through here so the terminal template, the working
+ * directory fallback and the failure handling exist once.
+ * @param request - Command to run and directory to open; a plain shell in the
+ * workspace when neither is given.
+ * @returns The result, so a caller that reports to the user can reuse it.
+ */
+async function openInTerminal(request: OpenTerminalRequest): Promise<TerminalOpenResult> {
+    const dir = request.dir ?? workspace?.path;
+    if (dir === undefined) {
+        return { state: 'error', command: '', detail: 'Open a workspace first.' };
+    }
+    const result = await openTerminal({
+        dir,
+        command:
+            request.argv === undefined || request.argv.length === 0
+                ? shellQuote(process.env.SHELL ?? '/bin/bash')
+                : commandLine(request.argv),
+        setting: persisted.settings.terminal,
+    });
+    if (result.state === 'error') {
+        logLines('app', 'error', `Terminal: ${result.detail ?? 'did not start'}`);
+    }
+    return result;
+}
+
+/**
  *
  * @param action - Menu action to dispatch.
  * @param actionArg - Optional payload for the action, such as a harness or path.
@@ -422,17 +462,7 @@ async function handleAction(action: string, actionArg?: string): Promise<void> {
             }
             return;
         case 'open-terminal':
-            if (workspace !== null) {
-                void openTerminal({
-                    dir: workspace.path,
-                    command: shellQuote(process.env.SHELL ?? '/bin/bash'),
-                    setting: persisted.settings.terminal,
-                }).then((result) => {
-                    if (result.state === 'error') {
-                        logLines('app', 'error', `Open terminal failed: ${result.detail ?? ''}`);
-                    }
-                });
-            }
+            void openInTerminal({});
             return;
         case 'reveal-workspace':
             if (workspace !== null) {
@@ -557,19 +587,39 @@ function registerIpc(): void {
             candidates,
         };
     });
-    ipcMain.handle(IPC.openTerminal, () => {
-        if (workspace === null) {
-            return {
-                state: 'error' as const,
-                command: '',
-                detail: 'Open a workspace first.',
-            };
+    ipcMain.handle(IPC.openTerminal, (_event, request?: unknown) => {
+        const parsed = parseOpenTerminalRequest(request);
+        if ('error' in parsed) {
+            return { state: 'error' as const, command: '', detail: parsed.error };
         }
-        return openTerminal({
-            dir: workspace.path,
-            command: shellQuote(process.env.SHELL ?? '/bin/bash'),
-            setting: persisted.settings.terminal,
+        return openInTerminal(parsed);
+    });
+    ipcMain.handle(IPC.getHarnessLaunches, () =>
+        HARNESSES.map((harness) => ({
+            id: harness.id,
+            argv: harness.argv,
+            detected: findOnPath(harness.argv[0]) !== undefined,
+        })),
+    );
+    ipcMain.handle(IPC.runPlaybookInTerminal, async (_event, playbookPath: unknown) => {
+        if (workspace === null) {
+            return { state: 'error' as const, command: '', detail: 'Open a workspace first.' };
+        }
+        if (typeof playbookPath !== 'string' || playbookPath.length === 0) {
+            return { state: 'error' as const, command: '', detail: 'No playbook was named.' };
+        }
+        const plan = planPlaybookRun({
+            workspacePath: workspace.path,
+            playbookPath,
+            executor: persisted.settings.playbookExecutor,
+            navigatorConfig: persisted.settings.navigatorConfig,
+            binDir: await resolveBinDir(workspace.path, selectedEnvironment()),
+            currentPath: process.env.PATH,
         });
+        if ('error' in plan) {
+            return { state: 'error' as const, command: '', detail: plan.error };
+        }
+        return openInTerminal({ argv: plan.argv });
     });
     ipcMain.handle(IPC.getDiagnostics, () => {
         const state = currentState();

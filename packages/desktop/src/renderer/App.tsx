@@ -354,6 +354,7 @@ export function App(): JSX.Element {
                                                 run(() => window.navita.rescanWorkspace());
                                             }}
                                             onGo={navigate}
+                                            onNotice={setNotice}
                                         />
                                     )}
 
@@ -388,6 +389,7 @@ export function App(): JSX.Element {
                                         <PlaybooksView
                                             workspacePath={state.workspace.path}
                                             onCopied={handleCopied}
+                                            onNotice={setNotice}
                                         />
                                     )}
 
@@ -423,7 +425,10 @@ export function App(): JSX.Element {
                                     )}
 
                                     {state.activeSection === 'harness-setup' && (
-                                        <HarnessSetupView onCopy={copySnippet} />
+                                        <HarnessSetupView
+                                            onCopy={copySnippet}
+                                            onNotice={setNotice}
+                                        />
                                     )}
 
                                     {state.activeSection === 'services' && (

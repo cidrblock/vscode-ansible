@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
     buildPlaybookFlags,
+    buildPlaybookArgs,
     buildPlaybookCommand,
+    buildNavigatorArgs,
     buildNavigatorCommand,
     buildNavigatorEECommand,
     parsePlaybook,
@@ -487,5 +489,30 @@ describe('mergePlaybookConfig', () => {
         expect(result.become).toBe(false);
         expect(result.verbose).toBe(0);
         expect(result.user).toBe('deploy');
+    });
+});
+
+describe('buildPlaybookArgs', () => {
+    it('keeps the playbook path as one word, spaces and all', () => {
+        expect(buildPlaybookArgs('my playbook.yml', {})).toEqual([
+            'ansible-playbook',
+            'my playbook.yml',
+        ]);
+    });
+
+    it('agrees with the string form it backs', () => {
+        const config: PlaybookConfig = { limit: 'web', check: true };
+        expect(buildPlaybookArgs('site.yml', config).join(' ')).toBe(
+            buildPlaybookCommand('site.yml', config),
+        );
+    });
+});
+
+describe('buildNavigatorArgs', () => {
+    it('puts playbook flags behind a separator', () => {
+        const args = buildNavigatorArgs('site.yml', { limit: 'web' });
+        expect(args.slice(0, 3)).toEqual(['ansible-navigator', 'run', 'site.yml']);
+        expect(args).toContain('--');
+        expect(args.indexOf('--')).toBeLessThan(args.indexOf('-l'));
     });
 });

@@ -357,16 +357,6 @@ button {
     margin: 0 0 12px;
 }
 
-.harness-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 8px;
-}
-
-.harness-grid .ghost {
-    text-align: left;
-}
-
 .pill {
     display: inline-block;
     padding: 1px 8px;
@@ -488,6 +478,13 @@ button {
     color: var(--fg-muted);
     line-height: 1.55;
     overflow-wrap: anywhere;
+}
+
+/* Ghost buttons that belong together on one line, e.g. the workspace card. */
+.button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .item-list {

@@ -6,9 +6,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
     buildTerminalLine,
+    commandLine,
     detectTerminals,
     findOnPath,
     openTerminal,
+    parseOpenTerminalRequest,
+    quoteArgument,
     resolveTerminal,
     shellQuote,
     templateProblem,
@@ -170,5 +173,67 @@ describe('openTerminal', () => {
         });
         expect(result.state).toBe('error');
         expect(result.detail).toContain('{command}');
+    });
+});
+
+describe('quoteArgument', () => {
+    it('leaves ordinary words alone', () => {
+        expect(quoteArgument('ansible-playbook')).toBe('ansible-playbook');
+        expect(quoteArgument('playbooks/site.yml')).toBe('playbooks/site.yml');
+        expect(quoteArgument('--mode')).toBe('--mode');
+    });
+
+    it('quotes anything the shell would reinterpret', () => {
+        expect(quoteArgument('my playbook.yml')).toBe("'my playbook.yml'");
+        expect(quoteArgument('$(id).yml')).toBe("'$(id).yml'");
+        expect(quoteArgument("it's.yml")).toBe("'it'\\''s.yml'");
+        expect(quoteArgument('')).toBe("''");
+    });
+});
+
+describe('commandLine', () => {
+    it('joins words without touching the safe ones', () => {
+        expect(commandLine(['ansible-playbook', 'site.yml'])).toBe('ansible-playbook site.yml');
+    });
+
+    it('cannot be broken out of by a hostile file name', () => {
+        expect(commandLine(['ansible-playbook', 'x; rm -rf ~.yml'])).toBe(
+            "ansible-playbook 'x; rm -rf ~.yml'",
+        );
+    });
+});
+
+describe('parseOpenTerminalRequest', () => {
+    it('treats a missing request as a plain shell', () => {
+        expect(parseOpenTerminalRequest(undefined)).toEqual({});
+        expect(parseOpenTerminalRequest(null)).toEqual({});
+    });
+
+    it('keeps a word list and a directory', () => {
+        expect(parseOpenTerminalRequest({ argv: ['claude'], dir: '/tmp/project' })).toEqual({
+            argv: ['claude'],
+            dir: '/tmp/project',
+        });
+    });
+
+    it('treats an empty word list as no command', () => {
+        expect(parseOpenTerminalRequest({ argv: [] })).toEqual({});
+    });
+
+    it('rejects words that are not strings', () => {
+        const parsed = parseOpenTerminalRequest({ argv: ['claude', 7] });
+        expect(parsed).toHaveProperty('error');
+    });
+
+    it('accepts a hostile-looking word, because it is quoted on the way out', () => {
+        const parsed = parseOpenTerminalRequest({ argv: ['claude; rm -rf ~'] });
+        // A single word is still valid: it is quoted on the way out, so the
+        // semicolon is part of the command name rather than a second command.
+        expect(parsed).toEqual({ argv: ['claude; rm -rf ~'] });
+    });
+
+    it('rejects a non-string directory', () => {
+        const parsed = parseOpenTerminalRequest({ dir: 3 });
+        expect(parsed).toHaveProperty('error');
     });
 });

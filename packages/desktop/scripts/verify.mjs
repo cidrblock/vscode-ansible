@@ -214,6 +214,76 @@ async function probeTerminal() {
 }
 
 /**
+ * Prove a playbook run reaches the terminal as the command the user expects.
+ *
+ * The plan is built by the same module the main process uses, then handed to a
+ * fake terminal that records its argv, so this covers the quoting as well as
+ * the argument order.
+ * @returns A promise that settles when the check is done.
+ */
+async function probePlaybookRun() {
+    const planner = await bundleModule('playbookRun.ts', 'playbookRun');
+    const terminal = await bundleModule('terminal.ts', 'terminal');
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'navita-verify-run-'));
+    const recorded = path.join(directory, 'args.txt');
+    const fake = path.join(directory, 'ptyxis');
+    fs.writeFileSync(fake, `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(recorded)}\n`, {
+        mode: 0o755,
+    });
+    fs.mkdirSync(path.join(directory, 'playbooks'));
+    fs.writeFileSync(path.join(directory, 'playbooks', 'site.yml'), '- hosts: all\n');
+    fs.writeFileSync(path.join(directory, 'playbooks', 'my playbook.yml'), '- hosts: all\n');
+
+    try {
+        const plain = planner.planPlaybookRun({
+            workspacePath: directory,
+            playbookPath: 'playbooks/site.yml',
+            executor: 'ansible-playbook',
+            navigatorConfig: '',
+        });
+        if (!('argv' in plain)) {
+            fail(`playbook-run: ${plain.error}`);
+            return;
+        }
+        const spaced = planner.planPlaybookRun({
+            workspacePath: directory,
+            playbookPath: 'playbooks/my playbook.yml',
+            executor: 'ansible-playbook',
+            navigatorConfig: '',
+        });
+        if (!('argv' in spaced)) {
+            fail(`playbook-run: ${spaced.error}`);
+            return;
+        }
+        const line = terminal.commandLine(spaced.argv);
+        if (line !== "ansible-playbook 'playbooks/my playbook.yml'") {
+            fail(`playbook-run: path was not quoted: ${line}`);
+            return;
+        }
+
+        const result = await terminal.openTerminal({
+            dir: directory,
+            command: terminal.commandLine(plain.argv),
+            setting: `${fake} --working-directory {dir} -- {command}`,
+            dirs: [directory],
+        });
+        if (result.state !== 'ready') {
+            fail(`playbook-run: ${result.detail ?? 'terminal did not start'}`);
+            return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        const args = fs.readFileSync(recorded, 'utf8').trim().split('\n');
+        if (args[3] !== 'ansible-playbook' || args[4] !== 'playbooks/site.yml') {
+            fail(`playbook-run: terminal got ${args.join(' ')}`);
+            return;
+        }
+        console.log(`PASS  playbook-run    ${path.basename(fake)} ${args.slice(1).join(' ')}`);
+    } finally {
+        fs.rmSync(directory, { recursive: true, force: true });
+    }
+}
+
+/**
  * Prove the diagnostics payload is gathered from the tools themselves.
  *
  * The page reports what navita would actually run, so this checks the versions
@@ -703,5 +773,6 @@ if (process.exitCode !== 1) {
 
     await probeResolver();
     await probeTerminal();
+    await probePlaybookRun();
     await probeLogs();
 }

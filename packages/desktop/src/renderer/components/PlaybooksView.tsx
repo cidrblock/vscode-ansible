@@ -4,19 +4,22 @@ import { groupByFolder } from '../../shared/playbooks';
 import type { PlaybooksResult } from '../../shared/ipc';
 import { CapNotice, FilterBox, useGroupedFilter } from '../filter';
 import { CopyButton } from './CopyButton';
+import { TerminalButton } from './TerminalButton';
 
 /**
  * Playbooks section, ported from `ansiblePlaybooks`.
  * @param props - Component properties.
  * @param props.workspacePath - Open workspace, scanned for playbooks.
  * @param props.onCopied - Called with a label once a prompt is copied.
+ * @param props.onNotice - Shows a confirmation or a failure as a toast.
  * @returns The playbooks panel.
  */
 export function PlaybooksView(props: {
     workspacePath: string;
     onCopied: (label: string) => void;
+    onNotice: (message: string) => void;
 }): JSX.Element {
-    const { workspacePath, onCopied } = props;
+    const { workspacePath, onCopied, onNotice } = props;
     const [result, setResult] = useState<PlaybooksResult | null>(null);
     const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
 
@@ -141,6 +144,17 @@ export function PlaybooksView(props: {
                                                     {String(playbook.playCount)} play
                                                     {playbook.playCount === 1 ? '' : 's'}
                                                 </span>
+                                                <TerminalButton
+                                                    label={playbook.name}
+                                                    title="Run in terminal"
+                                                    success={`Running ${playbook.name} in a terminal.`}
+                                                    open={() =>
+                                                        window.navita.runPlaybookInTerminal(
+                                                            playbook.relativePath,
+                                                        )
+                                                    }
+                                                    onNotice={onNotice}
+                                                />
                                                 <CopyButton
                                                     label={playbook.name}
                                                     prompt={playbook.prompt}

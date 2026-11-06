@@ -19,7 +19,7 @@ import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import type { TerminalCandidate, TerminalOpenResult } from '../shared/ipc';
+import type { OpenTerminalRequest, TerminalCandidate, TerminalOpenResult } from '../shared/ipc';
 
 /** Placeholder for the directory to open in. */
 export const DIR_PLACEHOLDER = '{dir}';
@@ -120,6 +120,35 @@ export function shellQuote(value: string): string {
     return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
+/** Characters that survive a shell untouched, so a word needs no quotes. */
+const SAFE_ARGUMENT = /^[A-Za-z0-9_@%+=:,./-]+$/;
+
+/**
+ * Quote one word only when the shell would otherwise change it.
+ *
+ * Quoting every word is safe but turns `ansible-playbook site.yml` into
+ * `'ansible-playbook' 'site.yml'`, which reads badly in a terminal title and in
+ * the error navita reports. Anything outside this set — a space, `$`, a quote,
+ * a glob — still goes through `shellQuote`.
+ * @param value - Raw argument.
+ * @returns The argument, quoted if it needs to be.
+ */
+export function quoteArgument(value: string): string {
+    return SAFE_ARGUMENT.test(value) ? value : shellQuote(value);
+}
+
+/**
+ * Turn an argument list into one shell command line.
+ *
+ * Callers pass words, never a pre-built line, so nothing they supply can be
+ * reinterpreted as shell syntax.
+ * @param argv - Arguments, executable first.
+ * @returns Space-joined command line.
+ */
+export function commandLine(argv: readonly string[]): string {
+    return argv.map(quoteArgument).join(' ');
+}
+
 /**
  * Fill a template in for one directory and command.
  *
@@ -184,6 +213,51 @@ export interface OpenTerminalOptions {
     readonly setting: string;
     /** Directories to search for known terminals. */
     readonly dirs?: readonly string[];
+}
+
+/**
+ * Check a request that arrived over IPC before any of it is used.
+ *
+ * The renderer is the only caller, but it is also the one place in navita where
+ * a value could arrive that nobody wrote: the request is validated here rather
+ * than trusted, so the terminal can only ever be asked to run a list of words.
+ * @param request - Value received on the IPC channel.
+ * @returns A usable request, or the reason it was rejected.
+ */
+export function parseOpenTerminalRequest(
+    request: unknown,
+): OpenTerminalRequest | { readonly error: string } {
+    if (request === undefined || request === null) {
+        return {};
+    }
+    if (typeof request !== 'object') {
+        return { error: 'The terminal request was not an object.' };
+    }
+    const record = request as Record<string, unknown>;
+    const parsed: { argv?: readonly string[]; dir?: string } = {};
+
+    if (record.argv !== undefined) {
+        const argv = record.argv;
+        if (
+            !Array.isArray(argv) ||
+            argv.some((word) => typeof word !== 'string' || word.length === 0)
+        ) {
+            return { error: 'The terminal command must be a list of non-empty words.' };
+        }
+        if (argv.length > 0) {
+            parsed.argv = argv as string[];
+        }
+    }
+
+    if (record.dir !== undefined) {
+        const dir = record.dir;
+        if (typeof dir !== 'string' || dir.trim().length === 0) {
+            return { error: 'The terminal directory must be a path.' };
+        }
+        parsed.dir = dir;
+    }
+
+    return parsed;
 }
 
 /** How long a terminal may take to fail before navita calls it started. */

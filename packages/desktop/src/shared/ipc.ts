@@ -52,6 +52,8 @@ export const IPC = {
     installCollection: 'navita:install-collection',
     getTerminalInfo: 'navita:get-terminal-info',
     openTerminal: 'navita:open-terminal',
+    getHarnessLaunches: 'navita:get-harness-launches',
+    runPlaybookInTerminal: 'navita:run-playbook-in-terminal',
     getDiagnostics: 'navita:get-diagnostics',
     upgradeDevTools: 'navita:upgrade-dev-tools',
 } as const;
@@ -227,14 +229,50 @@ export interface Harness {
     readonly label: string;
     /** File a user would paste the snippet into. */
     readonly configPath: string;
+    /** Command that starts the harness, and the arguments that point it here. */
+    readonly argv: readonly [string, ...string[]];
+    /** How the action reads in the UI; the terminal is only the mechanism. */
+    readonly action: string;
 }
 
 export const HARNESSES: readonly Harness[] = [
-    { id: 'cursor', label: 'Cursor', configPath: '.cursor/mcp.json' },
-    { id: 'claude-code', label: 'Claude Code', configPath: '.mcp.json' },
-    { id: 'codex', label: 'Codex', configPath: '~/.codex/config.toml' },
-    { id: 'vscode', label: 'VS Code / Copilot', configPath: '.vscode/mcp.json' },
+    {
+        id: 'cursor',
+        label: 'Cursor',
+        configPath: '.cursor/mcp.json',
+        argv: ['cursor', '.'],
+        action: 'Open workspace in Cursor',
+    },
+    {
+        id: 'claude-code',
+        label: 'Claude Code',
+        configPath: '.mcp.json',
+        argv: ['claude'],
+        action: 'Start Claude Code here',
+    },
+    {
+        id: 'codex',
+        label: 'Codex',
+        configPath: '~/.codex/config.toml',
+        argv: ['codex'],
+        action: 'Start Codex here',
+    },
+    {
+        id: 'vscode',
+        label: 'VS Code / Copilot',
+        configPath: '.vscode/mcp.json',
+        argv: ['code', '.'],
+        action: 'Open workspace in VS Code',
+    },
 ];
+
+/** Which harnesses navita can start, and whether their command exists. */
+export interface HarnessLaunch {
+    readonly id: HarnessId;
+    /** Command navita would hand to the terminal. */
+    readonly argv: readonly [string, ...string[]];
+    readonly detected: boolean;
+}
 
 export interface WorkspaceEntry {
     readonly path: string;
@@ -486,6 +524,14 @@ export interface TerminalInfo {
     /** Template that will be used, or null when nothing usable was found. */
     readonly template: string | null;
     readonly candidates: readonly TerminalCandidate[];
+}
+
+/** What to open a terminal on. Everything omitted means a plain shell. */
+export interface OpenTerminalRequest {
+    /** Command to run, as words; navita quotes each one for the shell. */
+    readonly argv?: readonly string[];
+    /** Directory to open in, absolute. Defaults to the open workspace. */
+    readonly dir?: string;
 }
 
 /** Outcome of asking navita to open a terminal. */
@@ -796,7 +842,19 @@ export interface NavitaBridge {
         lookupName?: string,
     ): Promise<CollectionInstallResult>;
     getTerminalInfo(): Promise<TerminalInfo>;
-    openTerminal(): Promise<TerminalOpenResult>;
+    /**
+     * Open the user's terminal.
+     * @param request - Command to run and directory to run it in; a plain shell
+     * in the workspace when omitted.
+     */
+    openTerminal(request?: OpenTerminalRequest): Promise<TerminalOpenResult>;
+    /** Which harness commands are installed on PATH. */
+    getHarnessLaunches(): Promise<readonly HarnessLaunch[]>;
+    /**
+     * Run a playbook in the user's terminal, using the configured executor.
+     * @param playbookPath - Playbook path as the Playbooks view reported it.
+     */
+    runPlaybookInTerminal(playbookPath: string): Promise<TerminalOpenResult>;
     getDiagnostics(): Promise<DiagnosticsPayload>;
     upgradeDevTools(): Promise<DevToolsInstallResult>;
     getLogs(): Promise<LogsResult>;

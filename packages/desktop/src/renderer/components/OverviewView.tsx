@@ -19,6 +19,8 @@ export interface OverviewViewProps {
     readonly onRescanWorkspace: () => void;
     /** Jump to the view that owns a control. */
     readonly onGo: (section: SectionId) => void;
+    /** Shows a confirmation or a failure as a toast. */
+    readonly onNotice: (message: string) => void;
 }
 
 /**
@@ -30,7 +32,7 @@ export interface OverviewViewProps {
  * @returns The overview pane.
  */
 export function OverviewView(props: OverviewViewProps): JSX.Element {
-    const { state, onOpenWorkspace, onRescanWorkspace, onGo } = props;
+    const { state, onOpenWorkspace, onRescanWorkspace, onGo, onNotice } = props;
     const [devTools, setDevTools] = useState<DevToolsResult | null>(null);
     const [installing, setInstalling] = useState(false);
     const [installResult, setInstallResult] = useState<DevToolsInstallResult | null>(null);
@@ -89,9 +91,35 @@ export function OverviewView(props: OverviewViewProps): JSX.Element {
                     <>
                         <p className="overview-value">{state.workspace.name}</p>
                         <p className="muted overview-path">{state.workspace.path}</p>
-                        <button className="ghost" onClick={onRescanWorkspace}>
-                            Rescan Workspace
-                        </button>
+                        <div className="button-row">
+                            <button className="ghost" onClick={onRescanWorkspace}>
+                                Rescan Workspace
+                            </button>
+                            <button
+                                className="ghost"
+                                onClick={() => {
+                                    window.navita
+                                        .openTerminal()
+                                        .then((result) => {
+                                            onNotice(
+                                                result.state === 'error'
+                                                    ? (result.detail ??
+                                                          'Could not open a terminal.')
+                                                    : 'Opened a terminal in this workspace.',
+                                            );
+                                        })
+                                        .catch((error: unknown) => {
+                                            onNotice(
+                                                error instanceof Error
+                                                    ? error.message
+                                                    : String(error),
+                                            );
+                                        });
+                                }}
+                            >
+                                Open Terminal
+                            </button>
+                        </div>
                     </>
                 )}
             </section>

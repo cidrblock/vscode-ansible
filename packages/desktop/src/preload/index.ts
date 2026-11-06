@@ -25,6 +25,8 @@ import {
     type CreatorResult,
     type CollectionSourcesResult,
     type DiagnosticsPayload,
+    type HarnessLaunch,
+    type OpenTerminalRequest,
     type TerminalInfo,
     type TerminalOpenResult,
     type LogsResult,
@@ -140,7 +142,12 @@ const bridge: NavitaBridge = {
         };
     },
     getTerminalInfo: () => ipcRenderer.invoke(IPC.getTerminalInfo) as Promise<TerminalInfo>,
-    openTerminal: () => ipcRenderer.invoke(IPC.openTerminal) as Promise<TerminalOpenResult>,
+    openTerminal: (request?: OpenTerminalRequest) =>
+        ipcRenderer.invoke(IPC.openTerminal, request) as Promise<TerminalOpenResult>,
+    getHarnessLaunches: () =>
+        ipcRenderer.invoke(IPC.getHarnessLaunches) as Promise<readonly HarnessLaunch[]>,
+    runPlaybookInTerminal: (playbookPath: string) =>
+        ipcRenderer.invoke(IPC.runPlaybookInTerminal, playbookPath) as Promise<TerminalOpenResult>,
     getDiagnostics: () => ipcRenderer.invoke(IPC.getDiagnostics) as Promise<DiagnosticsPayload>,
     upgradeDevTools: () =>
         ipcRenderer.invoke(IPC.upgradeDevTools) as Promise<DevToolsInstallResult>,

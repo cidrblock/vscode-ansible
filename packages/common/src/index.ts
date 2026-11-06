@@ -84,7 +84,9 @@ export { BUILTIN_SKILLS } from './skills';
 // --- Parsers ---
 export {
     buildPlaybookFlags,
+    buildPlaybookArgs,
     buildPlaybookCommand,
+    buildNavigatorArgs,
     buildNavigatorCommand,
     buildNavigatorEECommand,
     parsePlaybook,
