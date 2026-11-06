@@ -43,6 +43,8 @@ export const IPC = {
     sectionRequested: 'navita:section-requested',
     installDevTools: 'navita:install-dev-tools',
     setTheme: 'navita:set-theme',
+    updateSettings: 'navita:update-settings',
+    clearRecents: 'navita:clear-recents',
 } as const;
 
 /** Sidebar sections, in the order they are ported from the extension views. */
@@ -58,7 +60,8 @@ export type SectionId =
     | 'creator'
     | 'collection-sources'
     | 'harness-setup'
-    | 'services';
+    | 'services'
+    | 'settings';
 
 /** Colour schemes the app can be asked to wear. */
 export type ThemeId = 'system' | 'navita-light' | 'navita-dark' | 'rhdh-light' | 'rhdh-dark';
@@ -185,6 +188,12 @@ export const SECTIONS: readonly Section[] = [
         group: 'content',
         sourceView: 'ansiblePlaybooks',
     },
+    {
+        id: 'settings',
+        label: 'Settings',
+        group: 'home',
+        sourceView: 'navitaSettings',
+    },
 ];
 
 /** Harnesses a generated MCP snippet can target. */
@@ -229,6 +238,34 @@ export interface EnvironmentSummary {
     readonly version?: string;
 }
 
+/**
+ * How the playbook run action executes a playbook.
+ *
+ * `ansible-navigator` runs inside an execution environment, which is what the
+ * extension defaults to; `ansible-playbook` uses the active Python environment.
+ */
+export type PlaybookExecutor = 'ansible-navigator' | 'ansible-playbook';
+
+/** Preferences the Settings pages edit and the main process acts on. */
+export interface AppSettings {
+    /** GitHub organizations Collection Sources scans. */
+    readonly githubOrgs: readonly string[];
+    /** Runner the playbook run action uses. */
+    readonly playbookExecutor: PlaybookExecutor;
+    /** ansible-navigator configuration file; empty means the default. */
+    readonly navigatorConfig: string;
+}
+
+/** Settings a client may change; every field is optional. */
+export type SettingsPatch = Partial<AppSettings>;
+
+/** Where this build lives, for the About page. */
+export interface AppAbout {
+    readonly version: string;
+    readonly installPath: string;
+    readonly statePath: string;
+}
+
 export interface AppState {
     readonly workspace: WorkspaceEntry | null;
     readonly environment: EnvironmentSummary | null;
@@ -237,6 +274,10 @@ export interface AppState {
     readonly mcp: McpStatus;
     readonly lsp: ServerStatus;
     readonly theme: ThemeId;
+    readonly settings: AppSettings;
+    /** Interpreter pinned for the open workspace, if the user pinned one. */
+    readonly pinnedEnvironment: string | null;
+    readonly about: AppAbout;
 }
 
 /** Actions the native menu can trigger, kept serializable for testability. */
@@ -609,6 +650,8 @@ export interface NavitaBridge {
     copySnippet(harness: HarnessId): Promise<string>;
     testConnection(): Promise<AppState>;
     setTheme(theme: ThemeId): Promise<AppState>;
+    updateSettings(patch: SettingsPatch): Promise<AppState>;
+    clearRecents(): Promise<AppState>;
     getDevTools(): Promise<DevToolsResult>;
     installDevTools(): Promise<DevToolsInstallResult>;
     getEnvironments(workspacePath: string | null): Promise<EnvironmentGroupsResult>;

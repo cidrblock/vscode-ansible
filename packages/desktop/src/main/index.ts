@@ -44,6 +44,7 @@ import {
 import { loadPlaybooks } from './playbooks';
 import { findSchemaNode, loadCreator } from './creator';
 import { loadCollectionSources, refreshCollectionSource } from './collectionSources';
+import { mergeSettings } from '../shared/settings';
 import { loadSkills } from './skills';
 import { invalidateToolCache, loadTools } from './tools';
 import { probeServers, serverEnv, serverSpawnSpec, type SpawnSpec } from './servers';
@@ -134,6 +135,14 @@ function currentState(): AppState {
         mcp: mcpStatus,
         lsp: lspStatus,
         theme: persisted.theme,
+        settings: persisted.settings,
+        pinnedEnvironment:
+            workspace === null ? null : (persisted.selectedEnvironments[workspace.path] ?? null),
+        about: {
+            version: app.getVersion(),
+            installPath: app.getAppPath(),
+            statePath: path.join(app.getPath('userData'), 'state.json'),
+        },
     };
 }
 
@@ -148,6 +157,22 @@ function currentState(): AppState {
  */
 function setTheme(theme: ThemeId): AppState {
     persisted.theme = theme;
+    store.save(persisted);
+    broadcast();
+    return currentState();
+}
+
+/**
+ * Persist a settings patch and push it to the renderer and the menu.
+ *
+ * Validation lives in `mergeSettings`, so a malformed patch from the renderer
+ * or a stale field from an older build cannot corrupt the state file.
+ *
+ * @param patch - Fields the renderer asked to change.
+ * @returns The state snapshot after the change.
+ */
+function updateSettings(patch: unknown): AppState {
+    persisted.settings = mergeSettings(persisted.settings, patch);
     store.save(persisted);
     broadcast();
     return currentState();
@@ -425,6 +450,13 @@ function registerIpc(): void {
     ipcMain.handle(IPC.setTheme, (_event, candidate: string) =>
         isThemeId(candidate) ? setTheme(candidate) : currentState(),
     );
+    ipcMain.handle(IPC.updateSettings, (_event, patch: unknown) => updateSettings(patch));
+    ipcMain.handle(IPC.clearRecents, () => {
+        persisted.recents = [];
+        store.save(persisted);
+        broadcast();
+        return currentState();
+    });
     ipcMain.handle(IPC.openWorkspace, () => pickWorkspace());
     ipcMain.handle(IPC.activateWorkspace, (_event, candidate: string) =>
         activateWorkspace(candidate),
@@ -564,9 +596,11 @@ function registerIpc(): void {
             await shell.openPath(target);
         }
     });
-    ipcMain.handle(IPC.getCollectionSources, () => loadCollectionSources(app.getPath('userData')));
+    ipcMain.handle(IPC.getCollectionSources, () =>
+        loadCollectionSources(app.getPath('userData'), { orgs: persisted.settings.githubOrgs }),
+    );
     ipcMain.handle(IPC.refreshCollectionSource, (_event, org: string) =>
-        refreshCollectionSource(app.getPath('userData'), org),
+        refreshCollectionSource(app.getPath('userData'), org, persisted.settings.githubOrgs),
     );
     ipcMain.handle(IPC.testConnection, async () =>
         workspace === null ? currentState() : activateWorkspace(workspace.path),

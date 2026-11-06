@@ -12,6 +12,7 @@ import { CollectionSourcesView } from './components/CollectionSourcesView';
 import { EnvironmentsView } from './components/EnvironmentsView';
 import { SkillsView } from './components/SkillsView';
 import { ToolsView } from './components/ToolsView';
+import { SettingsView } from './components/SettingsView';
 import { Sidebar } from './components/Sidebar';
 import { ViewHeader, type CrumbLink } from './components/ViewHeader';
 import { OverviewView } from './components/OverviewView';
@@ -289,7 +290,14 @@ export function App(): JSX.Element {
             <div className="app">
                 {state.workspace !== null && (
                     <header className="topbar">
-                        <ViewHeader crumbs={crumbs} canGoBack={canGoBack} onBack={back} />
+                        <ViewHeader
+                            crumbs={crumbs}
+                            canGoBack={canGoBack}
+                            onBack={back}
+                            onOpenSettings={() => {
+                                navigate('settings');
+                            }}
+                        />
                     </header>
                 )}
 
@@ -378,6 +386,10 @@ export function App(): JSX.Element {
                                             onCopied={handleCopied}
                                             onNotice={setNotice}
                                         />
+                                    )}
+
+                                    {state.activeSection === 'settings' && (
+                                        <SettingsView state={state} onNotice={setNotice} />
                                     )}
 
                                     {state.activeSection === 'harness-setup' && (

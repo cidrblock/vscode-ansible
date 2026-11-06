@@ -18,6 +18,7 @@ import {
 } from '@ansible/developer-services';
 import type { GalaxyCollection, GitHubCollection } from '@ansible/developer-services';
 
+import { DEFAULT_GITHUB_ORGS } from '../shared/settings';
 import type {
     CollectionSourceEntry,
     CollectionSourcesResult,
@@ -25,8 +26,8 @@ import type {
     GitHubOrgSource,
 } from '../shared/ipc';
 
-/** Organizations the extension scans by default. */
-export const DEFAULT_GITHUB_ORGS = ['ansible', 'ansible-collections', 'redhat-cop'] as const;
+/** Organizations the extension scans by default, re-exported for tests. */
+export { DEFAULT_GITHUB_ORGS };
 
 /** How many Galaxy collections the view lists before asking for a search. */
 export const GALAXY_LIMIT = 50;
@@ -126,13 +127,18 @@ export function readGitHubOrgs(orgs: readonly string[]): GitHubOrgSource[] {
  * on the org tells it when to stop.
  * @param storageDir - Directory navita keeps its Galaxy cache in.
  * @param org - GitHub organization to rescan.
+ * @param orgs - Organizations to report; defaults to the extension's list.
  * @returns The current sources, with that organization marked as refreshing.
  */
-export function refreshCollectionSource(storageDir: string, org: string): CollectionSourcesResult {
+export function refreshCollectionSource(
+    storageDir: string,
+    org: string,
+    orgs: readonly string[] = DEFAULT_GITHUB_ORGS,
+): CollectionSourcesResult {
     const cache = GitHubCollectionCache.getInstance();
     cache.setTokenResolver(resolveGitHubToken);
     void cache.refresh(org);
-    return loadCollectionSources(storageDir, { startLoad: false });
+    return loadCollectionSources(storageDir, { startLoad: false, orgs });
 }
 
 /**
@@ -140,14 +146,15 @@ export function refreshCollectionSource(storageDir: string, org: string): Collec
  * @param storageDir - Directory navita keeps its Galaxy cache in.
  * @param options - Behaviour for this read.
  * @param options.startLoad - False reports state without starting a fetch.
+ * @param options.orgs - Organizations to report; defaults to the extension's list.
  * @returns Galaxy entries, GitHub org counts, and whether Galaxy is still loading.
  */
 export function loadCollectionSources(
     storageDir: string,
-    options: { readonly startLoad?: boolean } = {},
+    options: { readonly startLoad?: boolean; readonly orgs?: readonly string[] } = {},
 ): CollectionSourcesResult {
     GitHubCollectionCache.getInstance().setTokenResolver(resolveGitHubToken);
-    const github = readGitHubOrgs(DEFAULT_GITHUB_ORGS);
+    const github = readGitHubOrgs(options.orgs ?? DEFAULT_GITHUB_ORGS);
     try {
         const galaxy = GalaxyCollectionCache.getInstance();
         galaxy.setExtensionContext({

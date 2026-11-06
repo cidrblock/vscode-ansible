@@ -7,7 +7,15 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { SECTIONS, THEMES, type SectionId, type ThemeId, type WorkspaceEntry } from '../shared/ipc';
+import {
+    SECTIONS,
+    THEMES,
+    type AppSettings,
+    type SectionId,
+    type ThemeId,
+    type WorkspaceEntry,
+} from '../shared/ipc';
+import { DEFAULT_SETTINGS, normalizeSettings } from '../shared/settings';
 import { toWorkspaceEntry } from './workspaces';
 
 const STATE_VERSION = 1;
@@ -21,6 +29,8 @@ export interface PersistedState {
     selectedEnvironments: Record<string, string>;
     /** Palette the app wears; `system` follows the desktop preference. */
     theme: ThemeId;
+    /** Preferences edited on the Settings pages. */
+    settings: AppSettings;
 }
 
 export const DEFAULT_STATE: PersistedState = {
@@ -30,6 +40,7 @@ export const DEFAULT_STATE: PersistedState = {
     lastWorkspace: null,
     selectedEnvironments: {},
     theme: 'system',
+    settings: DEFAULT_SETTINGS,
 };
 
 /**
@@ -86,6 +97,7 @@ export function parseState(raw: unknown): PersistedState {
         lastWorkspace?: unknown;
         selectedEnvironments?: unknown;
         theme?: unknown;
+        settings?: unknown;
     };
     const recents = Array.isArray(candidate.recents)
         ? candidate.recents
@@ -106,6 +118,7 @@ export function parseState(raw: unknown): PersistedState {
         lastWorkspace,
         selectedEnvironments: parseSelections(candidate.selectedEnvironments),
         theme: isThemeId(candidate.theme) ? candidate.theme : DEFAULT_STATE.theme,
+        settings: normalizeSettings(candidate.settings),
     };
 }
 

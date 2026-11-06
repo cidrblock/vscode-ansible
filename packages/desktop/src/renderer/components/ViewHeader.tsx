@@ -14,6 +14,8 @@ export interface ViewHeaderProps {
     readonly canGoBack: boolean;
     /** Go one level up. */
     readonly onBack: () => void;
+    /** Opens the Settings section; the gear is only drawn when this is given. */
+    readonly onOpenSettings?: () => void;
 }
 
 /**
@@ -27,7 +29,7 @@ export interface ViewHeaderProps {
  * @returns The app bar contents.
  */
 export function ViewHeader(props: ViewHeaderProps): JSX.Element {
-    const { crumbs, canGoBack, onBack } = props;
+    const { crumbs, canGoBack, onBack, onOpenSettings } = props;
     return (
         <div className="view-header">
             {canGoBack && (
@@ -60,6 +62,25 @@ export function ViewHeader(props: ViewHeaderProps): JSX.Element {
                     </Fragment>
                 ))}
             </nav>
+            {onOpenSettings !== undefined && (
+                <button
+                    className="icon-button settings-button"
+                    title="Settings"
+                    aria-label="Settings"
+                    onClick={onOpenSettings}
+                >
+                    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+                        <path
+                            fill="currentColor"
+                            d="M8 10.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Zm0-1.2a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6Z"
+                        />
+                        <path
+                            fill="currentColor"
+                            d="M7.1 1h1.8l.3 1.6c.5.1.9.3 1.3.6l1.5-.7 1 1.5-1.2 1.1c.1.3.1.6.1.9s0 .6-.1.9l1.2 1.1-1 1.5-1.5-.7c-.4.3-.8.5-1.3.6L8.9 15H7.1l-.3-1.6c-.5-.1-.9-.3-1.3-.6l-1.5.7-1-1.5 1.2-1.1A3.9 3.9 0 0 1 4.1 10c0-.3 0-.6.1-.9L3 8l1-1.5 1.5.7c.4-.3.8-.5 1.3-.6L7.1 1Zm.9 1.1-.1.9c-.7.1-1.4.4-1.9.8l-.9-.4-.4.6.7.6c-.2.4-.4 1-.4 1.4s.1 1 .4 1.4l-.7.6.4.6.9-.4c.5.4 1.2.7 1.9.8l.1.9h.9l.1-.9c.7-.1 1.4-.4 1.9-.8l.9.4.4-.6-.7-.6c.2-.4.4-1 .4-1.4s-.1-1-.4-1.4l.7-.6-.4-.6-.9.4c-.5-.4-1.2-.7-1.9-.8l-.1-.9h-.9Z"
+                        />
+                    </svg>
+                </button>
+            )}
         </div>
     );
 }

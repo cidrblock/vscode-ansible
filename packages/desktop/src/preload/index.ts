@@ -46,6 +46,8 @@ const bridge: NavitaBridge = {
         ipcRenderer.invoke(IPC.copySnippet, harness) as Promise<string>,
     testConnection: () => ipcRenderer.invoke(IPC.testConnection) as Promise<AppState>,
     setTheme: (theme: ThemeId) => ipcRenderer.invoke(IPC.setTheme, theme) as Promise<AppState>,
+    updateSettings: (patch) => ipcRenderer.invoke(IPC.updateSettings, patch) as Promise<AppState>,
+    clearRecents: () => ipcRenderer.invoke(IPC.clearRecents) as Promise<AppState>,
     getDevTools: () => ipcRenderer.invoke(IPC.getDevTools) as Promise<DevToolsResult>,
     installDevTools: () =>
         ipcRenderer.invoke(IPC.installDevTools) as Promise<DevToolsInstallResult>,
