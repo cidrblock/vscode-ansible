@@ -15,18 +15,16 @@ export function SkillsView(props: { onCopied: (label: string) => void }): JSX.El
     const [result, setResult] = useState<SkillsResult | null>(null);
     const { onCopied } = props;
 
-    const load = useCallback(() => {
+    const load = useCallback((force = false) => {
         setResult(null);
-        window.navita
-            .getSkills()
-            .then(setResult)
-            .catch((error: unknown) => {
-                setResult({
-                    state: 'error',
-                    groups: [],
-                    detail: error instanceof Error ? error.message : String(error),
-                });
+        const request = force ? window.navita.refreshSkills() : window.navita.getSkills();
+        request.then(setResult).catch((error: unknown) => {
+            setResult({
+                state: 'error',
+                groups: [],
+                detail: error instanceof Error ? error.message : String(error),
             });
+        });
     }, []);
 
     useEffect(() => {
@@ -54,16 +52,41 @@ export function SkillsView(props: { onCopied: (label: string) => void }): JSX.El
                           ? `${String(filter.matches)} of ${String(filter.total)} skills`
                           : `${String(total)} skills`}
                 </span>
-                <button className="ghost" onClick={load}>
+                <button
+                    className="ghost"
+                    title="Reload every source, bypassing the on-disk cache"
+                    onClick={() => {
+                        load(true);
+                    }}
+                >
                     Refresh
                 </button>
             </div>
+            {result?.sources === undefined || result.sources.length === 0 ? null : (
+                <>
+                    <p className="muted">
+                        {result.sources
+                            .map((source) => `${source.id} ${String(source.count)}`)
+                            .join(' · ')}
+                    </p>
+                    {result.sources
+                        .filter((source) => source.state === 'error')
+                        .map((source) => (
+                            <p key={source.id} className="install-error">
+                                {source.id}: {source.error ?? 'could not be loaded'}
+                            </p>
+                        ))}
+                </>
+            )}
             {result === null ? (
                 <p className="muted">Loading skill sources…</p>
             ) : result.state === 'error' ? (
                 <p className="muted">{result.detail ?? 'Could not load skills.'}</p>
             ) : result.groups.length === 0 ? (
-                <p className="muted">No skills found in the bundled sources.</p>
+                <p className="muted">
+                    No skills loaded. Built-in skills ship with navita; add sources in Settings →
+                    Skill sources.
+                </p>
             ) : filter.active && filter.groups.length === 0 ? (
                 <p className="muted">No skills match “{filter.query}”.</p>
             ) : (

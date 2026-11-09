@@ -21,7 +21,7 @@ describe('buildSnippet', () => {
         expect(server.args).toEqual(['/opt/navita/dist/servers/mcp-server.js']);
         expect(server.env.ELECTRON_RUN_AS_NODE).toBe('1');
         expect(JSON.parse(server.env.ANSIBLE_SKILL_SOURCES)).toEqual([
-            { type: 'local', path: '/opt/navita/dist/skills' },
+            { id: 'bundled', type: 'local', url: '/opt/navita/dist/skills', trust: 'certified' },
         ]);
     });
 
@@ -34,6 +34,32 @@ describe('buildSnippet', () => {
         const snippet = buildSnippet('codex', options);
         expect(snippet).toContain('[mcp_servers.ansible]');
         expect(snippet).toContain('command = "/opt/navita/navita"');
+    });
+
+    it('passes configured skill sources to the harness', () => {
+        const snippet = buildSnippet('cursor', {
+            ...options,
+            skillSources: [
+                {
+                    id: 'ai-forge',
+                    type: 'github',
+                    url: 'https://github.com/acme/skills',
+                    trust: 'community',
+                },
+            ],
+        });
+        const parsed = JSON.parse(snippet) as {
+            mcpServers: Record<string, { env: Record<string, string> }>;
+        };
+        expect(JSON.parse(parsed.mcpServers.ansible.env.ANSIBLE_SKILL_SOURCES)).toEqual([
+            { id: 'bundled', type: 'local', url: '/opt/navita/dist/skills', trust: 'certified' },
+            {
+                id: 'ai-forge',
+                type: 'github',
+                url: 'https://github.com/acme/skills',
+                trust: 'community',
+            },
+        ]);
     });
 
     it('only pins a workspace when one is supplied', () => {

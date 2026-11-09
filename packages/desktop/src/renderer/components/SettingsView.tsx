@@ -5,9 +5,18 @@ import {
     type AppSettings,
     type AppState,
     type PlaybookExecutor,
+    type SkillSourceSetting,
+    type SkillSourceType,
+    type SkillTrust,
     type TerminalInfo,
 } from '../../shared/ipc';
-import { MAX_GITHUB_ORGS, PLAYBOOK_EXECUTORS } from '../../shared/settings';
+import {
+    MAX_GITHUB_ORGS,
+    MAX_SKILL_SOURCES,
+    PLAYBOOK_EXECUTORS,
+    SKILL_SOURCE_TYPES,
+    SKILL_TRUST_LEVELS,
+} from '../../shared/settings';
 import { useTrail } from '../navigation';
 import {
     parseSettingsTrail,
@@ -46,6 +55,10 @@ export function SettingsView(props: {
 
     if (page === 'sources') {
         return <SourcesPage settings={state.settings} onNotice={onNotice} />;
+    }
+
+    if (page === 'skills') {
+        return <SkillSourcesPage settings={state.settings} onNotice={onNotice} />;
     }
 
     if (page === 'playbooks') {
@@ -328,6 +341,164 @@ function SourcesPage(props: {
                     Add organization
                 </button>
             </form>
+        </section>
+    );
+}
+
+/**
+ * Skill sources loaded after the built-in and bundled sets.
+ *
+ * The shape matches `ansibleEnvironments.skillSources`, so a list copied from
+ * VS Code settings works here unchanged.
+ * @param props - Component properties.
+ * @param props.settings - Current preferences.
+ * @param props.onNotice - Shows a short confirmation as a toast.
+ * @returns The skill sources page.
+ */
+function SkillSourcesPage(props: {
+    settings: AppSettings;
+    onNotice: (message: string) => void;
+}): JSX.Element {
+    const { settings, onNotice } = props;
+    const [id, setId] = useState('');
+    const [type, setType] = useState<SkillSourceType>('github');
+    const [url, setUrl] = useState('');
+    const [trust, setTrust] = useState<SkillTrust>('community');
+
+    const save = useCallback(
+        (sources: readonly SkillSourceSetting[]) => {
+            void window.navita.updateSettings({ skillSources: sources }).then((next) => {
+                onNotice(`Loading ${String(next.settings.skillSources.length)} skill source(s).`);
+            });
+        },
+        [onNotice],
+    );
+
+    const add = useCallback(() => {
+        const sourceId = id.trim();
+        const sourceUrl = url.trim();
+        if (sourceId.length === 0 || sourceUrl.length === 0) {
+            onNotice('A source needs an id and a URL or directory.');
+            return;
+        }
+        if (
+            settings.skillSources.some((entry) => entry.id.toLowerCase() === sourceId.toLowerCase())
+        ) {
+            onNotice(`${sourceId} is already in the list.`);
+            return;
+        }
+        if (settings.skillSources.length >= MAX_SKILL_SOURCES) {
+            onNotice(`A list of ${String(MAX_SKILL_SOURCES)} sources is the limit.`);
+            return;
+        }
+        save([...settings.skillSources, { id: sourceId, type, url: sourceUrl, trust }]);
+        setId('');
+        setUrl('');
+    }, [id, onNotice, save, settings.skillSources, trust, type, url]);
+
+    return (
+        <section className="card">
+            <div className="card-header">
+                <h2>Skill sources</h2>
+                <span className="muted">
+                    {settings.skillSources.length} of {MAX_SKILL_SOURCES} sources
+                </span>
+            </div>
+            <p className="muted">
+                Loaded after the skills navita ships. GitHub and registry sources are fetched once
+                and cached for a day; local sources are read from disk. The same list is handed to
+                harnesses through the MCP snippet.
+            </p>
+            {settings.skillSources.length === 0 ? (
+                <p className="muted">Only the built-in skills are loaded.</p>
+            ) : (
+                <ul className="item-list">
+                    {settings.skillSources.map((source) => (
+                        <li key={source.id} className="item-row">
+                            <div className="item-main">
+                                <span className="item-title">{source.id}</span>
+                                <span className="item-description">{source.url}</span>
+                            </div>
+                            <span className="item-tag">{source.type}</span>
+                            <span className="item-tag">{source.trust}</span>
+                            <button
+                                className="icon-button"
+                                title={`Remove ${source.id}`}
+                                aria-label={`Remove ${source.id}`}
+                                onClick={() => {
+                                    save(
+                                        settings.skillSources.filter(
+                                            (entry) => entry.id !== source.id,
+                                        ),
+                                    );
+                                }}
+                            >
+                                ×
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+            <form
+                className="setting-form wrapping"
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    add();
+                }}
+            >
+                <input
+                    className="filter-box setting-input"
+                    aria-label="Skill source id"
+                    placeholder="source id"
+                    value={id}
+                    onChange={(event) => {
+                        setId(event.target.value);
+                    }}
+                />
+                <select
+                    className="setting-select"
+                    aria-label="Skill source type"
+                    value={type}
+                    onChange={(event) => {
+                        setType(event.target.value as SkillSourceType);
+                    }}
+                >
+                    {SKILL_SOURCE_TYPES.map((option) => (
+                        <option key={option} value={option}>
+                            {option}
+                        </option>
+                    ))}
+                </select>
+                <input
+                    className="filter-box setting-input"
+                    aria-label="Skill source URL or directory"
+                    placeholder="https://github.com/org/repo or /path/to/skills"
+                    value={url}
+                    onChange={(event) => {
+                        setUrl(event.target.value);
+                    }}
+                />
+                <select
+                    className="setting-select"
+                    aria-label="Skill source trust"
+                    value={trust}
+                    onChange={(event) => {
+                        setTrust(event.target.value as SkillTrust);
+                    }}
+                >
+                    {SKILL_TRUST_LEVELS.map((option) => (
+                        <option key={option} value={option}>
+                            {option}
+                        </option>
+                    ))}
+                </select>
+                <button className="ghost" type="submit">
+                    Add source
+                </button>
+            </form>
+            <p className="muted">
+                A local source is a directory holding one folder per skill, each with a SKILL.md.
+            </p>
         </section>
     );
 }

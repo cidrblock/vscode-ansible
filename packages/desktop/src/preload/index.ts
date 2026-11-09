@@ -76,6 +76,7 @@ const bridge: NavitaBridge = {
         ipcRenderer.invoke(IPC.selectEnvironment, pythonPath) as Promise<AppState>,
     getTools: () => ipcRenderer.invoke(IPC.getTools) as Promise<ToolsResult>,
     getSkills: () => ipcRenderer.invoke(IPC.getSkills) as Promise<SkillsResult>,
+    refreshSkills: () => ipcRenderer.invoke(IPC.refreshSkills) as Promise<SkillsResult>,
     copyText: (text: string) => ipcRenderer.invoke(IPC.copyText, text) as Promise<void>,
     getCollections: () => ipcRenderer.invoke(IPC.getCollections) as Promise<CollectionsResult>,
     getCollectionPlugins: (collection: string, pluginType: string) =>

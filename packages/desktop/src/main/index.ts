@@ -8,7 +8,12 @@
 
 import { app, BrowserWindow, Menu, clipboard, dialog, ipcMain, shell } from 'electron';
 import type { MenuItemConstructorOptions } from 'electron';
-import { buildCommandArgs, CommandService, CreatorService } from '@ansible/developer-services';
+import {
+    buildCommandArgs,
+    CommandService,
+    CreatorService,
+    type SkillSource,
+} from '@ansible/developer-services';
 import { setLogFunction } from '@ansible/common';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -67,7 +72,7 @@ import { loadPlaybooks } from './playbooks';
 import { findSchemaNode, loadCreator } from './creator';
 import { loadCollectionSources, refreshCollectionSource } from './collectionSources';
 import { mergeSettings } from '../shared/settings';
-import { loadSkills } from './skills';
+import { buildSkillSources, loadSkills } from './skills';
 import { invalidateToolCache, loadTools } from './tools';
 import { probeServers, serverEnv, serverSpawnSpec, type SpawnSpec } from './servers';
 import { buildServerEntry, buildSnippet } from './snippet';
@@ -119,14 +124,17 @@ function serverScripts(): { mcp: string; lsp: string; skills: string } {
 }
 
 /**
- * Skills navita ships plus anything the user installed later.
- * @returns Skill directories the MCP server should load.
+ * Skill sources navita ships, plus anything the user configured or installed.
+ *
+ * The same list feeds the Skills view, the spawned servers and the snippet, so
+ * a skill available in navita is available to the harness.
+ * @returns Sources the registry should load, bundled first.
  */
-function skillSources(): string[] {
-    const sources = [serverScripts().skills];
+function skillSources(): SkillSource[] {
+    const sources = buildSkillSources(serverScripts().skills, persisted.settings.skillSources);
     const userSkills = path.join(app.getPath('userData'), 'skills');
     if (fs.existsSync(userSkills)) {
-        sources.push(userSkills);
+        sources.push({ id: 'user', type: 'local', url: userSkills, trust: 'private' });
     }
     return sources;
 }
@@ -404,6 +412,7 @@ function snippetFor(harness: HarnessId): string {
         skillsDir: scripts.skills,
         execPath: process.execPath,
         workspacePath: workspace?.path,
+        skillSources: persisted.settings.skillSources,
     });
 }
 
@@ -752,7 +761,12 @@ function registerIpc(): void {
             cwd,
         );
     });
-    ipcMain.handle(IPC.getSkills, () => loadSkills(serverScripts().skills));
+    ipcMain.handle(IPC.getSkills, () =>
+        loadSkills(serverScripts().skills, persisted.settings.skillSources),
+    );
+    ipcMain.handle(IPC.refreshSkills, () =>
+        loadSkills(serverScripts().skills, persisted.settings.skillSources, true),
+    );
     ipcMain.handle(IPC.copyText, (_event, text: string) => clipboard.writeText(text));
     ipcMain.handle(IPC.getCollections, () => loadCollections());
     ipcMain.handle(IPC.getCollectionPlugins, (_event, collection: string, pluginType: string) =>

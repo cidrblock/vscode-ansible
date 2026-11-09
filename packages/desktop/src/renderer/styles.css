@@ -697,6 +697,22 @@ button {
     margin-top: 14px;
 }
 
+/* Several fields on one line where there is room, one per line when there is not. */
+.setting-form.wrapping {
+    flex-wrap: wrap;
+}
+
+.setting-select {
+    height: 30px;
+    padding: 0 6px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-input);
+    color: var(--fg);
+    font: inherit;
+    font-size: 12px;
+}
+
 .setting-input {
     flex: 1 1 260px;
     max-width: 420px;

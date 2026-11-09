@@ -5,7 +5,7 @@
  * that script and let Electron act as Node. Nothing is downloaded at paste time.
  */
 
-import { HARNESSES, type HarnessId } from '../shared/ipc';
+import { HARNESSES, type HarnessId, type SkillSourceSetting } from '../shared/ipc';
 
 export interface SnippetOptions {
     /** Absolute path to the bundled MCP server entry. */
@@ -16,6 +16,8 @@ export interface SnippetOptions {
     readonly execPath: string;
     /** Optional workspace pin; omitted when the snippet should follow the harness cwd. */
     readonly workspacePath?: string;
+    /** Extra skill sources from Settings, appended after the bundled directory. */
+    readonly skillSources?: readonly SkillSourceSetting[];
 }
 
 const SERVER_KEY = 'ansible';
@@ -36,7 +38,10 @@ export interface HarnessServerEntry {
 function envPairs(options: SnippetOptions): Record<string, string> {
     const env: Record<string, string> = {
         ELECTRON_RUN_AS_NODE: '1',
-        ANSIBLE_SKILL_SOURCES: JSON.stringify([{ type: 'local', path: options.skillsDir }]),
+        ANSIBLE_SKILL_SOURCES: JSON.stringify([
+            { id: 'bundled', type: 'local', url: options.skillsDir, trust: 'certified' },
+            ...(options.skillSources ?? []),
+        ]),
     };
     if (options.workspacePath !== undefined) {
         env.ANSIBLE_ENV_WORKSPACE = options.workspacePath;

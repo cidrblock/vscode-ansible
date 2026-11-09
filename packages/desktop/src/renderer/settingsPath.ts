@@ -10,7 +10,7 @@ import type { Crumb } from './navigation';
 
 /** Pages the Settings section can show below its root. */
 export type SettingsPage =
-    'appearance' | 'workspace' | 'sources' | 'playbooks' | 'terminal' | 'about';
+    'appearance' | 'workspace' | 'sources' | 'skills' | 'playbooks' | 'terminal' | 'about';
 
 /** One settings page, as the root list shows it. */
 export interface SettingsPageInfo {
@@ -35,6 +35,11 @@ export const SETTINGS_PAGES: readonly SettingsPageInfo[] = [
         id: 'sources',
         title: 'Collection Sources',
         description: 'GitHub organizations scanned for collections.',
+    },
+    {
+        id: 'skills',
+        title: 'Skill sources',
+        description: 'Directories, repositories and indexes that add skills to the built-in set.',
     },
     {
         id: 'playbooks',

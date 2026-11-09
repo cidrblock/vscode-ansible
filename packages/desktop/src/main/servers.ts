@@ -11,6 +11,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import * as path from 'node:path';
 
 import type { McpStatus, ServerStatus } from '../shared/ipc';
+import type { SkillSource } from '@ansible/developer-services';
 import { levelFor, logLines } from './logs';
 
 export interface SpawnSpec {
@@ -53,14 +54,14 @@ function isElectronBinary(execPath: string): boolean {
 /**
  * Environment a harness-spawned or navita-spawned server needs for a workspace.
  * @param workspacePath - Absolute workspace path handed to the server.
- * @param skillSources - Skill source directories exposed to the server.
+ * @param skillSources - Skill sources exposed to the server, in load order.
  * @param base - Base environment; defaults to the current process environment.
  * @param binDir - Python environment bin dir to put first on PATH.
  * @returns Environment map for the child process.
  */
 export function serverEnv(
     workspacePath: string | null,
-    skillSources: readonly string[],
+    skillSources: readonly SkillSource[],
     base: NodeJS.ProcessEnv = process.env,
     binDir: string | null = null,
 ): NodeJS.ProcessEnv {
@@ -75,9 +76,7 @@ export function serverEnv(
         env.PATH = currentPath === '' ? binDir : `${binDir}${path.delimiter}${currentPath}`;
     }
     if (skillSources.length > 0) {
-        env.ANSIBLE_SKILL_SOURCES = JSON.stringify(
-            skillSources.map((sourcePath) => ({ type: 'local', path: sourcePath })),
-        );
+        env.ANSIBLE_SKILL_SOURCES = JSON.stringify(skillSources);
     }
     return env;
 }

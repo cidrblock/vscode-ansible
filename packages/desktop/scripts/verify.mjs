@@ -644,15 +644,29 @@ if (process.exitCode !== 1) {
     }
 
     const skillsModule = await bundleModule('skills.ts', 'skills');
-    const skillCatalog = await skillsModule.loadSkills(path.join(DIST, 'skills'));
+    const extraSkills = fs.mkdtempSync(path.join(os.tmpdir(), 'navita-verify-skills-'));
+    fs.mkdirSync(path.join(extraSkills, 'verify-skill'), { recursive: true });
+    fs.writeFileSync(
+        path.join(extraSkills, 'verify-skill', 'SKILL.md'),
+        '---\nname: Verify Source Skill\ndescription: added by the headless check\n---\nBody.',
+    );
+    const skillCatalog = await skillsModule.loadSkills(path.join(DIST, 'skills'), [
+        { id: 'verify-local', type: 'local', url: extraSkills, trust: 'private' },
+    ]);
     if (skillCatalog.state === 'error') {
         fail(`skills: ${skillCatalog.detail}`);
     } else {
         const count = skillCatalog.groups.reduce((total, group) => total + group.skills.length, 0);
-        console.log(
-            `PASS  ai-skills        ${count} skills in ${skillCatalog.groups.length} source(s)`,
-        );
+        const configured = skillCatalog.groups.find((group) => group.id === 'verify-local');
+        if (configured === undefined || configured.skills.length !== 1) {
+            fail('skills: a configured local source was not loaded');
+        } else {
+            console.log(
+                `PASS  ai-skills        ${count} skills in ${skillCatalog.groups.length} source(s), configured source honoured`,
+            );
+        }
     }
+    fs.rmSync(extraSkills, { recursive: true, force: true });
 
     const collectionsModule = await bundleModule('collections.ts', 'collections');
     const collections = await collectionsModule.loadCollections();

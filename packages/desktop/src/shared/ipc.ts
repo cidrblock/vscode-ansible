@@ -34,6 +34,7 @@ export const IPC = {
     getCollectionSources: 'navita:get-collection-sources',
     refreshCollectionSource: 'navita:refresh-collection-source',
     getSkills: 'navita:get-skills',
+    refreshSkills: 'navita:refresh-skills',
     copyText: 'navita:copy-text',
     runCreator: 'navita:run-creator',
     creatorStarted: 'navita:creator-started',
@@ -347,10 +348,33 @@ export interface EnvironmentSummary {
  */
 export type PlaybookExecutor = 'ansible-navigator' | 'ansible-playbook';
 
+/** Transports a skill source can use. */
+export type SkillSourceType = 'github' | 'registry' | 'local';
+
+/** Trust label every skill from a source inherits. */
+export type SkillTrust = 'community' | 'certified' | 'partner' | 'private';
+
+/**
+ * One configured skill source.
+ *
+ * Mirrors `ansibleEnvironments.skillSources` in the extension, so the same
+ * list can be pasted into either host.
+ */
+export interface SkillSourceSetting {
+    readonly id: string;
+    readonly type: SkillSourceType;
+    readonly url: string;
+    readonly trust: SkillTrust;
+    /** Hours between cache refreshes; the registry defaults to 24. */
+    readonly refreshInterval?: number;
+}
+
 /** Preferences the Settings pages edit and the main process acts on. */
 export interface AppSettings {
     /** GitHub organizations Collection Sources scans. */
     readonly githubOrgs: readonly string[];
+    /** Extra skill sources loaded after the built-in and bundled ones. */
+    readonly skillSources: readonly SkillSourceSetting[];
     /** Runner the playbook run action uses. */
     readonly playbookExecutor: PlaybookExecutor;
     /** ansible-navigator configuration file; empty means the default. */
@@ -482,9 +506,20 @@ export interface SkillGroup {
     readonly skills: readonly SkillEntryView[];
 }
 
+/** How one source fared on the last load. */
+export interface SkillSourceStatus {
+    readonly id: string;
+    readonly type: SkillSourceType | 'builtin' | 'bundled';
+    readonly state: 'ready' | 'error';
+    readonly count: number;
+    readonly error?: string;
+}
+
 export interface SkillsResult {
     readonly state: 'ready' | 'error';
     readonly groups: readonly SkillGroup[];
+    /** Every source that was consulted, including ones that failed. */
+    readonly sources?: readonly SkillSourceStatus[];
     readonly detail?: string;
 }
 
@@ -919,6 +954,8 @@ export interface NavitaBridge {
     selectEnvironment(pythonPath: string | null): Promise<AppState>;
     getTools(): Promise<ToolsResult>;
     getSkills(): Promise<SkillsResult>;
+    /** Reload every skill source, bypassing the on-disk cache. */
+    refreshSkills(): Promise<SkillsResult>;
     copyText(text: string): Promise<void>;
     getCollections(): Promise<CollectionsResult>;
     getCollectionPlugins(collection: string, pluginType: string): Promise<CollectionPluginsResult>;

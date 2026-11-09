@@ -6,7 +6,14 @@
  * tests can share one definition of what a valid setting looks like.
  */
 
-import type { AppSettings, PlaybookExecutor, SettingsPatch } from './ipc';
+import type {
+    AppSettings,
+    PlaybookExecutor,
+    SettingsPatch,
+    SkillSourceSetting,
+    SkillSourceType,
+    SkillTrust,
+} from './ipc';
 
 /** Organizations Collection Sources scans until the user changes them. */
 export const DEFAULT_GITHUB_ORGS: readonly string[] = [
@@ -17,6 +24,36 @@ export const DEFAULT_GITHUB_ORGS: readonly string[] = [
 
 /** Longest organization list the Settings page accepts. */
 export const MAX_GITHUB_ORGS = 20;
+
+/**
+ * Skill sources navita starts with.
+ *
+ * Same source the extension ships by default, so both hosts present the same
+ * skills. Loading it needs `api.github.com`; the registry caches the index for
+ * a day and built-in skills stay available when the fetch fails.
+ */
+export const DEFAULT_SKILL_SOURCES: readonly SkillSourceSetting[] = [
+    {
+        id: 'ai-forge',
+        type: 'github',
+        url: 'https://github.com/ansible-community/ai-forge',
+        trust: 'community',
+    },
+];
+
+/** Longest skill source list the Settings page accepts. */
+export const MAX_SKILL_SOURCES = 20;
+
+/** Transports a user may choose on the Skill sources page. */
+export const SKILL_SOURCE_TYPES: readonly SkillSourceType[] = ['github', 'registry', 'local'];
+
+/** Trust levels a source may carry. */
+export const SKILL_TRUST_LEVELS: readonly SkillTrust[] = [
+    'community',
+    'certified',
+    'partner',
+    'private',
+];
 
 /** Executors the run action understands, in display order. */
 export const PLAYBOOK_EXECUTORS: readonly {
@@ -41,6 +78,7 @@ export const MAX_TERMINAL_TEMPLATE = 300;
 
 export const DEFAULT_SETTINGS: AppSettings = {
     githubOrgs: [...DEFAULT_GITHUB_ORGS],
+    skillSources: DEFAULT_SKILL_SOURCES.map((source) => ({ ...source })),
     playbookExecutor: 'ansible-navigator',
     navigatorConfig: '',
     terminal: '',
@@ -85,6 +123,85 @@ export function normalizeOrgs(raw: unknown): string[] {
 }
 
 /**
+ * Check whether a value names a skill source transport.
+ * @param value - Candidate value.
+ * @returns True when it is one of the supported transports.
+ */
+export function isSkillSourceType(value: unknown): value is SkillSourceType {
+    return SKILL_SOURCE_TYPES.some((type) => type === value);
+}
+
+/**
+ * Check whether a value names a trust level.
+ * @param value - Candidate value.
+ * @returns True when it is one of the supported levels.
+ */
+export function isSkillTrust(value: unknown): value is SkillTrust {
+    return SKILL_TRUST_LEVELS.some((level) => level === value);
+}
+
+/**
+ * Clean a list of skill sources.
+ *
+ * Unlike the organization list an empty array is kept: turning every external
+ * source off is a legitimate choice, and built-in skills are always loaded.
+ * Entries that are not usable are dropped rather than turning into a source
+ * that fails on every load.
+ * @param raw - Candidate list from a state file or a settings patch.
+ * @returns Sources to load, deduplicated by id and capped.
+ */
+export function normalizeSkillSources(raw: unknown): SkillSourceSetting[] {
+    if (!Array.isArray(raw)) {
+        return DEFAULT_SKILL_SOURCES.map((source) => ({ ...source }));
+    }
+    const seen = new Set<string>();
+    const sources: SkillSourceSetting[] = [];
+    for (const entry of raw) {
+        if (typeof entry !== 'object' || entry === null) {
+            continue;
+        }
+        const candidate = entry as {
+            id?: unknown;
+            type?: unknown;
+            url?: unknown;
+            trust?: unknown;
+            refreshInterval?: unknown;
+        };
+        if (
+            typeof candidate.id !== 'string' ||
+            typeof candidate.url !== 'string' ||
+            !isSkillSourceType(candidate.type) ||
+            !isSkillTrust(candidate.trust)
+        ) {
+            continue;
+        }
+        const id = candidate.id.trim().slice(0, 64);
+        const url = candidate.url.trim().slice(0, 2000);
+        const key = id.toLowerCase();
+        if (id.length === 0 || url.length === 0 || seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+        const source: SkillSourceSetting = {
+            id,
+            type: candidate.type,
+            url,
+            trust: candidate.trust,
+        };
+        if (
+            typeof candidate.refreshInterval === 'number' &&
+            Number.isFinite(candidate.refreshInterval) &&
+            candidate.refreshInterval > 0
+        ) {
+            sources.push({ ...source, refreshInterval: Math.min(candidate.refreshInterval, 8760) });
+        } else {
+            sources.push(source);
+        }
+    }
+    return sources.slice(0, MAX_SKILL_SOURCES);
+}
+
+/**
  * Clean a terminal template.
  *
  * The value is a command line the user owns, so only the obvious damage is
@@ -108,12 +225,14 @@ export function normalizeSettings(raw: unknown): AppSettings {
     }
     const candidate = raw as {
         githubOrgs?: unknown;
+        skillSources?: unknown;
         playbookExecutor?: unknown;
         navigatorConfig?: unknown;
         terminal?: unknown;
     };
     return {
         githubOrgs: normalizeOrgs(candidate.githubOrgs),
+        skillSources: normalizeSkillSources(candidate.skillSources),
         playbookExecutor: isPlaybookExecutor(candidate.playbookExecutor)
             ? candidate.playbookExecutor
             : DEFAULT_SETTINGS.playbookExecutor,
@@ -138,6 +257,7 @@ export function mergeSettings(current: AppSettings, patch: unknown): AppSettings
     const candidate = patch as SettingsPatch;
     return normalizeSettings({
         githubOrgs: 'githubOrgs' in candidate ? candidate.githubOrgs : current.githubOrgs,
+        skillSources: 'skillSources' in candidate ? candidate.skillSources : current.skillSources,
         playbookExecutor:
             'playbookExecutor' in candidate ? candidate.playbookExecutor : current.playbookExecutor,
         navigatorConfig:
