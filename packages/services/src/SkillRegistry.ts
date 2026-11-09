@@ -520,11 +520,10 @@ export class SkillRegistry {
         const urlMatch = !cached?.sourceUrl || cached.sourceUrl === source.url;
 
         if (cached && urlMatch && Date.now() - cached.timestamp < maxAge) {
-            for (const skill of cached.skills) {
-                this._skills.set(skill.id, skill);
-            }
+            const { added, skipped } = this._registerSkills(cached.skills);
             log(
-                `SkillRegistry: loaded ${String(cached.skills.length)} skills from cache for ${source.id}`,
+                `SkillRegistry: loaded ${String(added)} skills from cache for ${source.id}` +
+                    (skipped > 0 ? `, skipped ${String(skipped)} already provided by builtin` : ''),
             );
             return;
         }
@@ -551,16 +550,7 @@ export class SkillRegistry {
                 break;
         }
 
-        let added = 0;
-        let skipped = 0;
-        for (const skill of skills) {
-            if (this._duplicatesLoadedSkill(skill)) {
-                skipped++;
-                continue;
-            }
-            this._skills.set(skill.id, skill);
-            added++;
-        }
+        const { added, skipped } = this._registerSkills(skills);
 
         if (skills.length > 0 || source.type === 'local') {
             this._writeCache(source.id, skills, format, source.url);
@@ -573,22 +563,55 @@ export class SkillRegistry {
     }
 
     /**
+     * Add a source's skills, skipping ones another source already provides.
+     *
+     * Cached and freshly fetched entries both come through here: a cache
+     * written before a skill was deduplicated must not reintroduce it.
+     * @param skills - Skills loaded from one source.
+     * @returns How many were added and how many were already present.
+     */
+    private _registerSkills(skills: readonly SkillEntry[]): { added: number; skipped: number } {
+        let added = 0;
+        let skipped = 0;
+        for (const skill of skills) {
+            if (this._duplicatesLoadedSkill(skill)) {
+                skipped++;
+                continue;
+            }
+            this._skills.set(skill.id, skill);
+            added++;
+        }
+        return { added, skipped };
+    }
+
+    /**
      * Whether this skill is already present under another source.
      *
      * The repo's `skills/` directory is compiled into `BUILTIN_SKILLS`, so a
      * local source pointing at the same files would otherwise list every skill
-     * twice — once as `builtin`, once as the configured source. Only an
-     * identical name and body counts as the same skill; a source that publishes
-     * its own version of a skill keeps its own entry.
+     * twice — once as `builtin`, once as the configured source.
+     *
+     * With both bodies available the comparison is exact, so a source that
+     * publishes its own version of a skill keeps its own entry. The index cache
+     * strips bodies to save space, so when either side came from it the name
+     * alone decides — otherwise a warm cache reintroduces what the first load
+     * skipped.
      *
      * @param skill - Skill about to be registered.
-     * @returns True when an identical skill is already loaded.
+     * @returns True when an equivalent skill is already loaded.
      */
     private _duplicatesLoadedSkill(skill: SkillEntry): boolean {
         for (const existing of this._skills.values()) {
-            if (existing.name === skill.name && existing.content === skill.content) {
-                return true;
+            if (existing.name !== skill.name) {
+                continue;
             }
+            if (existing.content !== undefined && skill.content !== undefined) {
+                if (existing.content === skill.content) {
+                    return true;
+                }
+                continue;
+            }
+            return true;
         }
         return false;
     }

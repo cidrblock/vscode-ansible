@@ -156,6 +156,15 @@ This is the body of the skill.`,
         expect(explain).toHaveLength(1);
         expect(explain[0].source).toBe('builtin');
         expect(skills.filter((skill) => skill.name === 'Extra Skill')).toHaveLength(1);
+
+        // A warm cache must not reintroduce what the first load skipped.
+        SkillRegistry.resetInstance();
+        const second = SkillRegistry.getInstance();
+        second.setSources([{ id: 'copy', type: 'local', url: root, trust: 'certified' }]);
+        await second.ensureLoaded();
+        const again = second.getAllSkills();
+        expect(again.filter((skill) => skill.name === 'Explain Ansible Plugin')).toHaveLength(1);
+        expect(again.filter((skill) => skill.name === 'Extra Skill')).toHaveLength(1);
     });
 
     it('handles SKILL.md without frontmatter', async () => {
