@@ -626,6 +626,55 @@ button {
     outline-offset: 1px;
 }
 
+/*
+ * Scope toggle on a harness row: shows whether that config file already has
+ * navita's entry, and writes or removes it on click.
+ */
+.scope-button {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 26px;
+    padding: 0 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--fg-muted);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.scope-button:hover:not(:disabled) {
+    color: var(--fg);
+    border-color: var(--accent);
+}
+
+.scope-button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.scope-button[data-state='installed'] {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.scope-button[data-state='stale'],
+.scope-button[data-state='error'] {
+    color: var(--warn);
+    border-color: var(--warn);
+}
+
+.scope-button:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.scope-glyph {
+    font-variant-numeric: tabular-nums;
+}
+
 /* A settings page's inline form: one input and the button that saves it. */
 .setting-form {
     display: flex;

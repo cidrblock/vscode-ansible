@@ -166,6 +166,76 @@ async function bundleModule(entry, name) {
 }
 
 /**
+ * Prove the harness config writer against a throwaway workspace and home.
+ *
+ * Writes JSON for Cursor and TOML for Codex, then removes both, so the check
+ * covers the merge, the detection and the removal rather than one direction.
+ * @returns A promise that settles when the check is done.
+ */
+async function probeHarnessConfig() {
+    const [config, snippet] = await Promise.all([
+        bundleModule('harnessConfig.ts', 'harnessConfig'),
+        bundleModule('snippet.ts', 'snippet'),
+    ]);
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'navita-verify-harness-'));
+    const workspacePath = path.join(root, 'project');
+    const home = path.join(root, 'home');
+    fs.mkdirSync(workspacePath, { recursive: true });
+    fs.mkdirSync(home, { recursive: true });
+    const context = { workspacePath, home, platform: 'linux' };
+    const expected = snippet.buildServerEntry({
+        serverScript: path.join(DIST, 'servers', 'mcp-server.js'),
+        skillsDir: path.join(DIST, 'skills'),
+        execPath: process.execPath,
+    });
+
+    try {
+        const cursor = config.applyHarnessConfig(context, expected, 'cursor', 'workspace', true);
+        if (cursor.error !== undefined || cursor.change?.action !== 'added') {
+            fail(`harness-config: cursor write failed: ${cursor.error ?? 'no change reported'}`);
+            return;
+        }
+        const codex = config.applyHarnessConfig(context, expected, 'codex', 'global', true);
+        if (codex.error !== undefined) {
+            fail(`harness-config: codex write failed: ${codex.error}`);
+            return;
+        }
+        const written = config
+            .readHarnessConfigs(context, expected)
+            .filter((entry) => entry.state === 'installed')
+            .map((entry) => `${entry.harness}/${entry.scope}`);
+        if (written.length !== 2) {
+            fail(`harness-config: expected 2 installed entries, got ${written.join(', ') || 'none'}`);
+            return;
+        }
+        const cursorFile = path.join(workspacePath, '.cursor', 'mcp.json');
+        const parsed = JSON.parse(fs.readFileSync(cursorFile, 'utf8'));
+        if (parsed.mcpServers.ansible.command !== process.execPath) {
+            fail('harness-config: cursor entry does not name this executable');
+            return;
+        }
+        const codexFile = path.join(home, '.codex', 'config.toml');
+        if (!fs.readFileSync(codexFile, 'utf8').includes('[mcp_servers.ansible]')) {
+            fail('harness-config: codex file has no mcp_servers.ansible table');
+            return;
+        }
+        const removed = config.applyHarnessConfig(context, expected, 'cursor', 'workspace', false);
+        if (removed.error !== undefined) {
+            fail(`harness-config: cursor removal failed: ${removed.error}`);
+            return;
+        }
+        const left = JSON.parse(fs.readFileSync(cursorFile, 'utf8'));
+        if ('ansible' in left.mcpServers) {
+            fail('harness-config: ansible entry survived removal');
+            return;
+        }
+        console.log(`PASS  harness-config  ${written.join(', ')} written; JSON removal leaves no entry`);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+}
+
+/**
  * Prove the terminal template resolution end to end without a display.
  *
  * A fake `ptyxis` on PATH records the arguments it was given, so the check sees
@@ -774,5 +844,6 @@ if (process.exitCode !== 1) {
     await probeResolver();
     await probeTerminal();
     await probePlaybookRun();
+    await probeHarnessConfig();
     await probeLogs();
 }

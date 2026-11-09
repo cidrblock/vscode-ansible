@@ -53,6 +53,8 @@ export const IPC = {
     getTerminalInfo: 'navita:get-terminal-info',
     openTerminal: 'navita:open-terminal',
     getHarnessLaunches: 'navita:get-harness-launches',
+    getHarnessConfigs: 'navita:get-harness-configs',
+    setHarnessConfig: 'navita:set-harness-config',
     runPlaybookInTerminal: 'navita:run-playbook-in-terminal',
     getDiagnostics: 'navita:get-diagnostics',
     upgradeDevTools: 'navita:upgrade-dev-tools',
@@ -272,6 +274,42 @@ export interface HarnessLaunch {
     /** Command navita would hand to the terminal. */
     readonly argv: readonly [string, ...string[]];
     readonly detected: boolean;
+}
+
+/** Where an MCP entry is written: this project, or the user's own config. */
+export type HarnessScope = 'workspace' | 'global';
+
+/**
+ * What a harness config currently says about navita's server.
+ *
+ * `stale` means the entry exists but points at a different install (a rebuild,
+ * or a tree that moved), so the harness would start the wrong server.
+ */
+export type HarnessConfigState = 'installed' | 'absent' | 'stale' | 'unsupported' | 'error';
+
+export interface HarnessConfigStatus {
+    readonly harness: HarnessId;
+    readonly scope: HarnessScope;
+    /** Absolute config file, or null when this scope cannot be written. */
+    readonly path: string | null;
+    readonly state: HarnessConfigState;
+    /** Why the scope is unavailable or unreadable. */
+    readonly detail?: string;
+}
+
+/** What a write actually did, so the renderer can confirm it precisely. */
+export interface HarnessConfigChange {
+    readonly harness: HarnessId;
+    readonly scope: HarnessScope;
+    readonly action: 'added' | 'updated' | 'removed';
+    readonly path: string;
+}
+
+export interface HarnessConfigResult {
+    /** Every harness and scope after the change, ready to replace the view state. */
+    readonly statuses: readonly HarnessConfigStatus[];
+    readonly change?: HarnessConfigChange;
+    readonly error?: string;
 }
 
 export interface WorkspaceEntry {
@@ -850,6 +888,19 @@ export interface NavitaBridge {
     openTerminal(request?: OpenTerminalRequest): Promise<TerminalOpenResult>;
     /** Which harness commands are installed on PATH. */
     getHarnessLaunches(): Promise<readonly HarnessLaunch[]>;
+    /** Whether each harness config already points at this install. */
+    getHarnessConfigs(): Promise<readonly HarnessConfigStatus[]>;
+    /**
+     * Add or remove navita's server in one harness config.
+     * @param harness - Harness whose config format should be edited.
+     * @param scope - This workspace's config, or the user's global one.
+     * @param install - True to write the entry, false to remove it.
+     */
+    setHarnessConfig(
+        harness: HarnessId,
+        scope: HarnessScope,
+        install: boolean,
+    ): Promise<HarnessConfigResult>;
     /**
      * Run a playbook in the user's terminal, using the configured executor.
      * @param playbookPath - Playbook path as the Playbooks view reported it.

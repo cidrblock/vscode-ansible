@@ -34,7 +34,10 @@ import {
     type ToolsResult,
     type CreatorFinishedEvent,
     type CreatorStartedEvent,
+    type HarnessConfigResult,
+    type HarnessConfigStatus,
     type HarnessId,
+    type HarnessScope,
     type NavitaBridge,
     type SectionId,
     type ThemeId,
@@ -146,6 +149,15 @@ const bridge: NavitaBridge = {
         ipcRenderer.invoke(IPC.openTerminal, request) as Promise<TerminalOpenResult>,
     getHarnessLaunches: () =>
         ipcRenderer.invoke(IPC.getHarnessLaunches) as Promise<readonly HarnessLaunch[]>,
+    getHarnessConfigs: () =>
+        ipcRenderer.invoke(IPC.getHarnessConfigs) as Promise<readonly HarnessConfigStatus[]>,
+    setHarnessConfig: (harness: HarnessId, scope: HarnessScope, install: boolean) =>
+        ipcRenderer.invoke(
+            IPC.setHarnessConfig,
+            harness,
+            scope,
+            install,
+        ) as Promise<HarnessConfigResult>,
     runPlaybookInTerminal: (playbookPath: string) =>
         ipcRenderer.invoke(IPC.runPlaybookInTerminal, playbookPath) as Promise<TerminalOpenResult>,
     getDiagnostics: () => ipcRenderer.invoke(IPC.getDiagnostics) as Promise<DiagnosticsPayload>,

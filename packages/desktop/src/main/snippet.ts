@@ -20,6 +20,13 @@ export interface SnippetOptions {
 
 const SERVER_KEY = 'ansible';
 
+/** One MCP server entry, in the shape every harness config format shares. */
+export interface HarnessServerEntry {
+    readonly command: string;
+    readonly args: readonly string[];
+    readonly env: Record<string, string>;
+}
+
 /**
  * Environment variables a harness needs to run the bundled server.
  *
@@ -38,6 +45,22 @@ function envPairs(options: SnippetOptions): Record<string, string> {
 }
 
 /**
+ * Build the server entry a harness config needs.
+ *
+ * Shared by the clipboard snippet and the config writer so a pasted entry and a
+ * written one cannot drift apart.
+ * @param options - Paths and optional workspace pin for the snippet.
+ * @returns Command, arguments and environment for the server.
+ */
+export function buildServerEntry(options: SnippetOptions): HarnessServerEntry {
+    return {
+        command: options.execPath,
+        args: [options.serverScript],
+        env: envPairs(options),
+    };
+}
+
+/**
  * Render a JSON snippet for harnesses that use a JSON config file.
  *
  * @param options - Paths and optional workspace pin for the snippet.
@@ -47,11 +70,7 @@ function envPairs(options: SnippetOptions): Record<string, string> {
 function jsonSnippet(options: SnippetOptions, wrapper: 'mcpServers' | 'servers'): string {
     const body = {
         [wrapper]: {
-            [SERVER_KEY]: {
-                command: options.execPath,
-                args: [options.serverScript],
-                env: envPairs(options),
-            },
+            [SERVER_KEY]: buildServerEntry(options),
         },
     };
     return `${JSON.stringify(body, null, 2)}\n`;
@@ -74,14 +93,14 @@ function tomlString(value: string): string {
  * @returns TOML table for `mcp_servers.ansible`.
  */
 function tomlSnippet(options: SnippetOptions): string {
-    const env = envPairs(options);
-    const envTable = Object.entries(env)
+    const entry = buildServerEntry(options);
+    const envTable = Object.entries(entry.env)
         .map(([key, value]) => `${key} = ${tomlString(value)}`)
         .join(', ');
     return [
         `[mcp_servers.${SERVER_KEY}]`,
-        `command = ${tomlString(options.execPath)}`,
-        `args = [${tomlString(options.serverScript)}]`,
+        `command = ${tomlString(entry.command)}`,
+        `args = [${entry.args.map(tomlString).join(', ')}]`,
         `env = { ${envTable} }`,
         '',
     ].join('\n');

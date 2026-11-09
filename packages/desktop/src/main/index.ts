@@ -11,6 +11,7 @@ import type { MenuItemConstructorOptions } from 'electron';
 import { buildCommandArgs, CommandService, CreatorService } from '@ansible/developer-services';
 import { setLogFunction } from '@ansible/common';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 
 import {
@@ -69,7 +70,8 @@ import { mergeSettings } from '../shared/settings';
 import { loadSkills } from './skills';
 import { invalidateToolCache, loadTools } from './tools';
 import { probeServers, serverEnv, serverSpawnSpec, type SpawnSpec } from './servers';
-import { buildSnippet } from './snippet';
+import { buildServerEntry, buildSnippet } from './snippet';
+import { applyHarnessConfig, readHarnessConfigs, type HarnessTargetContext } from './harnessConfig';
 import { isThemeId, StateStore, type PersistedState } from './store';
 import { clearLogs, configureLogs, currentLogs, levelFor, logLines, onLogAppended } from './logs';
 import { isDirectory, pushRecent, removeRecent, toWorkspaceEntry } from './workspaces';
@@ -406,6 +408,36 @@ function snippetFor(harness: HarnessId): string {
 }
 
 /**
+ * Where each harness keeps its config on this machine.
+ *
+ * @returns Workspace, home directory and platform the writer resolves against.
+ */
+function harnessContext(): HarnessTargetContext {
+    return {
+        workspacePath: workspace?.path ?? null,
+        home: os.homedir(),
+        platform: process.platform,
+        appData: process.env.APPDATA,
+    };
+}
+
+/**
+ * The entry navita writes into a harness config.
+ *
+ * Deliberately without a workspace pin: a written config lives longer than one
+ * project path, so the server follows the harness's working directory instead.
+ * @returns Command, arguments and environment for the bundled MCP server.
+ */
+function harnessServerEntry(): ReturnType<typeof buildServerEntry> {
+    const scripts = serverScripts();
+    return buildServerEntry({
+        serverScript: scripts.mcp,
+        skillsDir: scripts.skills,
+        execPath: process.execPath,
+    });
+}
+
+/**
  * Open the user's terminal, showing nothing and logging a failure.
  *
  * Every entry point funnels through here so the terminal template, the working
@@ -600,6 +632,34 @@ function registerIpc(): void {
             argv: harness.argv,
             detected: findOnPath(harness.argv[0]) !== undefined,
         })),
+    );
+    ipcMain.handle(IPC.getHarnessConfigs, () =>
+        readHarnessConfigs(harnessContext(), harnessServerEntry()),
+    );
+    ipcMain.handle(
+        IPC.setHarnessConfig,
+        (_event, harness: string, scope: string, install: boolean) => {
+            const target = HARNESSES.find((candidate) => candidate.id === harness);
+            if (target === undefined) {
+                return {
+                    statuses: readHarnessConfigs(harnessContext(), harnessServerEntry()),
+                    error: `Unknown harness: ${harness}`,
+                };
+            }
+            if (scope !== 'workspace' && scope !== 'global') {
+                return {
+                    statuses: readHarnessConfigs(harnessContext(), harnessServerEntry()),
+                    error: `Unknown scope: ${scope}`,
+                };
+            }
+            return applyHarnessConfig(
+                harnessContext(),
+                harnessServerEntry(),
+                target.id,
+                scope,
+                install,
+            );
+        },
     );
     ipcMain.handle(IPC.runPlaybookInTerminal, async (_event, playbookPath: unknown) => {
         if (workspace === null) {
