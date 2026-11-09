@@ -255,7 +255,7 @@ export const HARNESSES: readonly Harness[] = [
     {
         id: 'codex',
         label: 'Codex',
-        configPath: '~/.codex/config.toml',
+        configPath: '.codex/config.toml',
         argv: ['codex'],
         action: 'Start Codex here',
     },
@@ -295,6 +295,8 @@ export interface HarnessConfigStatus {
     readonly state: HarnessConfigState;
     /** Why the scope is unavailable or unreadable. */
     readonly detail?: string;
+    /** Something that makes the harness ignore this file even though it is valid. */
+    readonly warning?: string;
 }
 
 /** What a write actually did, so the renderer can confirm it precisely. */

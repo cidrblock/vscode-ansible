@@ -577,6 +577,14 @@ button {
     overflow-wrap: anywhere;
 }
 
+/* Path plus any tag that qualifies it, on one wrapping line. */
+.item-subline {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
 .item-tag {
     flex: none;
     font-size: 11px;
@@ -592,6 +600,12 @@ button {
 .item-tag.version {
     text-transform: none;
     letter-spacing: 0;
+}
+
+/* A tag that qualifies the row rather than describing it. */
+.item-tag.warn {
+    color: var(--warn);
+    border-color: var(--warn);
 }
 
 /* A package name is also an identifier, so it keeps its own casing. */

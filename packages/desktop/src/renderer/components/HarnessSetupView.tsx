@@ -78,14 +78,16 @@ function ScopeButton(props: ScopeButtonProps): JSX.Element {
     const state = status?.state ?? 'unsupported';
     const disabled = busy || state === 'unsupported';
     const label = scope === 'workspace' ? 'Workspace' : 'Global';
+    const base = scopeTitle(state, status?.path ?? null, status?.detail);
+    const title = status?.warning === undefined ? base : `${base} — ${status.warning}`;
     return (
         <button
             type="button"
             className="scope-button"
             data-state={state}
             aria-pressed={state === 'installed'}
-            aria-label={`${label} config: ${scopeTitle(state, status?.path ?? null, status?.detail)}`}
-            title={scopeTitle(state, status?.path ?? null, status?.detail)}
+            aria-label={`${label} config: ${title}`}
+            title={title}
             disabled={disabled}
             onClick={() => {
                 onToggle(scope, state !== 'installed');
@@ -202,7 +204,17 @@ export function HarnessSetupView(props: HarnessSetupViewProps): JSX.Element {
                         <li key={harness.id} className="item-row">
                             <div className="item-main">
                                 <span className="item-title">{harness.label}</span>
-                                <span className="item-description">{harness.configPath}</span>
+                                <span className="item-subline">
+                                    <span className="item-description">{harness.configPath}</span>
+                                    {workspaceStatus?.warning === undefined ? null : (
+                                        <span
+                                            className="item-tag warn"
+                                            title={workspaceStatus.warning}
+                                        >
+                                            needs trust
+                                        </span>
+                                    )}
+                                </span>
                             </div>
                             <ScopeButton
                                 scope="workspace"

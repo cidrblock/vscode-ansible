@@ -109,6 +109,7 @@ function workspaceRelativePath(harness: HarnessId): string | null {
         case 'vscode':
             return path.join('.vscode', 'mcp.json');
         case 'codex':
+            return path.join('.codex', 'config.toml');
         default:
             return null;
     }
@@ -134,22 +135,17 @@ export function harnessTargets(context: HarnessTargetContext): readonly HarnessC
     const targets: HarnessConfigTarget[] = [];
     for (const harness of HARNESSES) {
         const relative = workspaceRelativePath(harness.id);
-        let workspacePath: string | null = null;
-        let workspaceDetail: string | undefined;
-        if (relative === null) {
-            workspaceDetail = 'Codex reads MCP servers from its user config only.';
-        } else if (context.workspacePath === null) {
-            workspaceDetail = 'Open a workspace first.';
-        } else {
-            workspacePath = path.join(context.workspacePath, relative);
-        }
+        const workspacePath =
+            relative === null || context.workspacePath === null
+                ? null
+                : path.join(context.workspacePath, relative);
         targets.push({
             harness: harness.id,
             scope: 'workspace',
             path: workspacePath,
             format: harness.id === 'codex' ? 'toml' : 'json',
             wrapper: wrapperFor(harness.id),
-            detail: workspaceDetail,
+            detail: workspacePath === null ? 'Open a workspace first.' : undefined,
         });
         targets.push({
             harness: harness.id,
@@ -284,6 +280,121 @@ function readTomlEntry(block: string): { command: string; args: string[] } | und
 }
 
 /**
+ * Paths Codex may have recorded a trust decision under.
+ *
+ * Codex keys its `projects` map by the project root, canonicalised when it can
+ * be. The workspace itself, its real path, and the nearest ancestor holding a
+ * `.git` entry are all plausible spellings of that root.
+ * @param workspacePath - Workspace the user opened.
+ * @returns Candidate keys, most specific first.
+ */
+function trustKeys(workspacePath: string): readonly string[] {
+    const keys = new Set<string>();
+    const add = (candidate: string): void => {
+        keys.add(candidate);
+        try {
+            keys.add(fs.realpathSync(candidate));
+        } catch {
+            // A path that cannot be resolved can still match its original spelling.
+        }
+    };
+    add(workspacePath);
+    let directory = workspacePath;
+    for (;;) {
+        if (fs.existsSync(path.join(directory, '.git'))) {
+            add(directory);
+            break;
+        }
+        const parent = path.dirname(directory);
+        if (parent === directory) {
+            break;
+        }
+        directory = parent;
+    }
+    return [...keys];
+}
+
+/**
+ * Read `[projects."<path>"] trust_level` decisions from a Codex user config.
+ *
+ * @param text - Contents of `~/.codex/config.toml`.
+ * @returns Trusted flag per project key.
+ */
+function projectsTrust(text: string): Map<string, boolean> {
+    const decisions = new Map<string, boolean>();
+    let current: string | null = null;
+    for (const line of text.split('\n')) {
+        const quoted = /^\s*\[\s*projects\s*\.\s*"((?:[^"\\]|\\.)*)"\s*\]\s*$/.exec(line);
+        if (quoted !== null) {
+            current = unescapeToml(quoted[1]);
+            continue;
+        }
+        const literal = /^\s*\[\s*projects\s*\.\s*'([^']*)'\s*\]\s*$/.exec(line);
+        if (literal !== null) {
+            current = literal[1];
+            continue;
+        }
+        if (/^\s*\[/.test(line)) {
+            current = null;
+            continue;
+        }
+        if (current === null) {
+            continue;
+        }
+        const trust = /^\s*trust_level\s*=\s*"([^"]*)"/.exec(line);
+        if (trust !== null) {
+            decisions.set(current, trust[1] === 'trusted');
+        }
+    }
+    return decisions;
+}
+
+/**
+ * Whether Codex will load this project's `.codex/config.toml`.
+ *
+ * Codex merges project config into the stack but disables that layer until the
+ * directory is trusted, so an entry can be correct and still be ignored.
+ * @param context - Home directory and workspace being inspected.
+ * @param workspacePath - Workspace the user opened.
+ * @returns True when a trusted decision names the workspace or its git root.
+ */
+function codexProjectTrusted(context: HarnessTargetContext, workspacePath: string): boolean {
+    const file = path.join(context.home, '.codex', 'config.toml');
+    let text: string;
+    try {
+        text = fs.readFileSync(file, 'utf8');
+    } catch {
+        return false;
+    }
+    const decisions = projectsTrust(text);
+    return trustKeys(workspacePath).some((key) => decisions.get(key) === true);
+}
+
+/**
+ * Explain why a valid-looking config might still be ignored.
+ *
+ * @param target - File that was read.
+ * @param context - Home directory and workspace being inspected.
+ * @returns Warning text, or undefined when nothing would stop the harness.
+ */
+function targetWarning(
+    target: HarnessConfigTarget,
+    context: HarnessTargetContext,
+): string | undefined {
+    if (
+        target.harness !== 'codex' ||
+        target.scope !== 'workspace' ||
+        context.workspacePath === null
+    ) {
+        return undefined;
+    }
+    if (codexProjectTrusted(context, context.workspacePath)) {
+        return undefined;
+    }
+    return 'Codex ignores .codex/config.toml until this project is trusted. Trust it once in Codex.';
+}
+
+/**
  * Decide what a config file says about navita's server.
  *
  * @param target - File being inspected.
@@ -331,11 +442,13 @@ function inspectText(
  *
  * @param target - File being inspected.
  * @param expected - Entry navita would write.
+ * @param context - Home directory and workspace the target belongs to.
  * @returns Status the renderer can render directly.
  */
 function readTarget(
     target: HarnessConfigTarget,
     expected: HarnessServerEntry,
+    context: HarnessTargetContext,
 ): HarnessConfigStatus {
     if (target.path === null) {
         return {
@@ -357,6 +470,7 @@ function readTarget(
                 scope: target.scope,
                 path: target.path,
                 state: 'absent',
+                warning: targetWarning(target, context),
             };
         }
         return {
@@ -365,6 +479,7 @@ function readTarget(
             path: target.path,
             state: 'error',
             detail: String(error),
+            warning: targetWarning(target, context),
         };
     }
     const result = inspectText(target, text, expected);
@@ -374,6 +489,7 @@ function readTarget(
         path: target.path,
         state: result.state,
         detail: result.detail,
+        warning: targetWarning(target, context),
     };
 }
 
@@ -388,7 +504,7 @@ export function readHarnessConfigs(
     context: HarnessTargetContext,
     expected: HarnessServerEntry,
 ): readonly HarnessConfigStatus[] {
-    return harnessTargets(context).map((target) => readTarget(target, expected));
+    return harnessTargets(context).map((target) => readTarget(target, expected, context));
 }
 
 /**
@@ -529,16 +645,18 @@ function backup(file: string): void {
  *
  * @param target - File to write.
  * @param expected - Entry to place.
+ * @param context - Home directory and workspace the target belongs to.
  * @returns Whether the entry was added or replaced.
  */
 function writeTarget(
     target: HarnessConfigTarget,
     expected: HarnessServerEntry,
+    context: HarnessTargetContext,
 ): 'added' | 'updated' {
     if (target.path === null) {
         throw new Error(target.detail ?? 'This harness has no such config file.');
     }
-    const previous = readTarget(target, expected);
+    const previous = readTarget(target, expected, context);
     if (previous.state === 'unsupported') {
         throw new Error(previous.detail ?? 'This harness has no such config file.');
     }
@@ -614,7 +732,7 @@ export function applyHarnessConfig(
     }
     try {
         if (install) {
-            const action = writeTarget(target, expected);
+            const action = writeTarget(target, expected, context);
             return {
                 statuses: readHarnessConfigs(context, expected),
                 change: { harness, scope, action, path: target.path },

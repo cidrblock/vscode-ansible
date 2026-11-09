@@ -62,15 +62,17 @@ afterEach(() => {
 });
 
 describe('harnessTargets', () => {
-    it('offers a workspace and a user file for every harness except Codex', () => {
+    it('offers a workspace and a user file for every harness', () => {
         const context = fixture();
         const targets = harnessTargets(context);
         expect(targets).toHaveLength(8);
         const codexWorkspace = targets.find(
             (target) => target.harness === 'codex' && target.scope === 'workspace',
         );
-        expect(codexWorkspace?.path).toBeNull();
-        expect(codexWorkspace?.detail).toContain('user config only');
+        expect(codexWorkspace?.path).toBe(
+            path.join(context.workspacePath ?? '', '.codex', 'config.toml'),
+        );
+        expect(codexWorkspace?.format).toBe('toml');
         const cursorWorkspace = targets.find(
             (target) => target.harness === 'cursor' && target.scope === 'workspace',
         );
@@ -110,6 +112,74 @@ describe('harnessTargets', () => {
         const cursor = status(context, 'cursor', 'workspace');
         expect(cursor.state).toBe('unsupported');
         expect(cursor.detail).toContain('Open a workspace first');
+    });
+});
+
+describe('Codex project config', () => {
+    it('warns when the project has not been trusted', () => {
+        const context = fixture();
+        const codex = status(context, 'codex', 'workspace');
+        expect(codex.path).toBe(path.join(context.workspacePath ?? '', '.codex', 'config.toml'));
+        expect(codex.warning).toContain('trusted');
+    });
+
+    it('drops the warning once the user config trusts the project', () => {
+        const context = fixture();
+        const file = path.join(context.home, '.codex', 'config.toml');
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(
+            file,
+            [
+                '[projects."' + (context.workspacePath ?? '') + '"]',
+                'trust_level = "trusted"',
+                '',
+            ].join('\n'),
+        );
+        expect(status(context, 'codex', 'workspace').warning).toBeUndefined();
+    });
+
+    it('accepts a trust decision recorded against the git root', () => {
+        const context = fixture();
+        const workspacePath = context.workspacePath ?? '';
+        const repository = path.join(workspacePath, 'packages', 'app');
+        fs.mkdirSync(path.join(workspacePath, '.git'), { recursive: true });
+        fs.mkdirSync(repository, { recursive: true });
+        const file = path.join(context.home, '.codex', 'config.toml');
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(
+            file,
+            ['[projects."' + workspacePath + '"]', 'trust_level = "trusted"', ''].join('\n'),
+        );
+        const nested = { ...context, workspacePath: repository };
+        expect(status(nested, 'codex', 'workspace').warning).toBeUndefined();
+    });
+
+    it('keeps the warning when the decision says untrusted', () => {
+        const context = fixture();
+        const file = path.join(context.home, '.codex', 'config.toml');
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(
+            file,
+            [
+                '[projects."' + (context.workspacePath ?? '') + '"]',
+                'trust_level = "untrusted"',
+                '',
+            ].join('\n'),
+        );
+        expect(status(context, 'codex', 'workspace').warning).toContain('trusted');
+    });
+
+    it('writes the workspace table without touching the user config', () => {
+        const context = fixture();
+        const userFile = path.join(context.home, '.codex', 'config.toml');
+        fs.mkdirSync(path.dirname(userFile), { recursive: true });
+        fs.writeFileSync(userFile, 'model = "gpt-5"\n');
+        const result = applyHarnessConfig(context, entry, 'codex', 'workspace', true);
+        expect(result.error).toBeUndefined();
+        const projectFile = path.join(context.workspacePath ?? '', '.codex', 'config.toml');
+        expect(fs.readFileSync(projectFile, 'utf8')).toContain('[mcp_servers.ansible]');
+        expect(fs.readFileSync(userFile, 'utf8')).toBe('model = "gpt-5"\n');
+        expect(status(context, 'codex', 'workspace').state).toBe('installed');
     });
 });
 

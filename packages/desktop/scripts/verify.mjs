@@ -200,12 +200,32 @@ async function probeHarnessConfig() {
             fail(`harness-config: codex write failed: ${codex.error}`);
             return;
         }
-        const written = config
-            .readHarnessConfigs(context, expected)
+        const codexProject = config.applyHarnessConfig(
+            context,
+            expected,
+            'codex',
+            'workspace',
+            true,
+        );
+        if (codexProject.error !== undefined) {
+            fail(`harness-config: codex project write failed: ${codexProject.error}`);
+            return;
+        }
+        const statuses = config.readHarnessConfigs(context, expected);
+        const written = statuses
             .filter((entry) => entry.state === 'installed')
             .map((entry) => `${entry.harness}/${entry.scope}`);
-        if (written.length !== 2) {
-            fail(`harness-config: expected 2 installed entries, got ${written.join(', ') || 'none'}`);
+        if (written.length !== 3) {
+            fail(`harness-config: expected 3 installed entries, got ${written.join(', ') || 'none'}`);
+            return;
+        }
+        const projectFile = path.join(workspacePath, '.codex', 'config.toml');
+        if (!fs.readFileSync(projectFile, 'utf8').includes('[mcp_servers.ansible]')) {
+            fail('harness-config: codex project file has no mcp_servers.ansible table');
+            return;
+        }
+        if (!statuses.some((entry) => entry.harness === 'codex' && entry.warning !== undefined)) {
+            fail('harness-config: untrusted Codex project should carry a warning');
             return;
         }
         const cursorFile = path.join(workspacePath, '.cursor', 'mcp.json');
