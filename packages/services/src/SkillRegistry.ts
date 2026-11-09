@@ -551,17 +551,46 @@ export class SkillRegistry {
                 break;
         }
 
+        let added = 0;
+        let skipped = 0;
         for (const skill of skills) {
+            if (this._duplicatesLoadedSkill(skill)) {
+                skipped++;
+                continue;
+            }
             this._skills.set(skill.id, skill);
+            added++;
         }
 
         if (skills.length > 0 || source.type === 'local') {
             this._writeCache(source.id, skills, format, source.url);
         }
         log(
-            `SkillRegistry: loaded ${String(skills.length)} skills from ${source.id}` +
-                (format ? ` (${format} format)` : ''),
+            `SkillRegistry: loaded ${String(added)} skills from ${source.id}` +
+                (format ? ` (${format} format)` : '') +
+                (skipped > 0 ? `, skipped ${String(skipped)} already provided by builtin` : ''),
         );
+    }
+
+    /**
+     * Whether this skill is already present under another source.
+     *
+     * The repo's `skills/` directory is compiled into `BUILTIN_SKILLS`, so a
+     * local source pointing at the same files would otherwise list every skill
+     * twice — once as `builtin`, once as the configured source. Only an
+     * identical name and body counts as the same skill; a source that publishes
+     * its own version of a skill keeps its own entry.
+     *
+     * @param skill - Skill about to be registered.
+     * @returns True when an identical skill is already loaded.
+     */
+    private _duplicatesLoadedSkill(skill: SkillEntry): boolean {
+        for (const existing of this._skills.values()) {
+            if (existing.name === skill.name && existing.content === skill.content) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // -- Private: GitHub source (auto-detect) --------------------------------

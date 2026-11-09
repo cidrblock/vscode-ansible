@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { SkillEntry } from '@ansible/common';
+import { BUILTIN_SKILLS, type SkillEntry } from '@ansible/common';
 
 /**
  * Filter out builtin skills for assertions about user-configured sources.
@@ -133,6 +133,29 @@ This is the body of the skill.`,
         expect(skills[0].triggers).toEqual(['test me', 'run test']);
         expect(skills[0].trust).toBe('private');
         expect(skills[0].content).toContain('This is the body of the skill.');
+    });
+
+    it('does not list a local copy of a builtin skill twice', async () => {
+        const root = path.join(tempDir, 'duplicate-skills');
+        const copied = path.join(root, 'explain-plugin');
+        fs.mkdirSync(copied, { recursive: true });
+        fs.writeFileSync(path.join(copied, 'SKILL.md'), BUILTIN_SKILLS['explain-plugin']);
+        const extra = path.join(root, 'extra-skill');
+        fs.mkdirSync(extra, { recursive: true });
+        fs.writeFileSync(
+            path.join(extra, 'SKILL.md'),
+            '---\nname: Extra Skill\ndescription: only in this source\n---\nBody.',
+        );
+
+        const reg = SkillRegistry.getInstance();
+        reg.setSources([{ id: 'copy', type: 'local', url: root, trust: 'certified' }]);
+        await reg.ensureLoaded();
+
+        const skills = reg.getAllSkills();
+        const explain = skills.filter((skill) => skill.name === 'Explain Ansible Plugin');
+        expect(explain).toHaveLength(1);
+        expect(explain[0].source).toBe('builtin');
+        expect(skills.filter((skill) => skill.name === 'Extra Skill')).toHaveLength(1);
     });
 
     it('handles SKILL.md without frontmatter', async () => {
